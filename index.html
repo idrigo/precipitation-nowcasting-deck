@@ -1,0 +1,1809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Precipitation Detection &amp; Nowcasting — Interactive Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
+<style>
+  :root{
+    --bg:#F6F1EB; --ink:#48484A; --muted:#888; --faint:#AAAAAA;
+    --teal:#78CBBF; --teal-d:#1D9E75; --blue:#378ADD; --coral:#E8763A;
+    --gray:#B4B2A9; --card:#FFFFFF; --line:#E0DDD6; --hair:#F0EDE8;
+    --band1:rgba(120,203,191,0.18); --band2:rgba(120,203,191,0.42);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Space Grotesk','Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;overflow:hidden;}
+  #progress{position:fixed;top:0;left:0;height:3px;width:0;background:var(--coral);z-index:200;transition:width .25s ease;}
+  #counter{position:fixed;right:16px;bottom:14px;z-index:150;font-size:13px;color:var(--muted);background:rgba(255,255,255,.7);
+    border:1px solid var(--line);border-radius:20px;padding:4px 12px;}
+  #counter.dark{color:#bbb;background:rgba(0,0,0,.25);border-color:#444;}
+  #hint{position:fixed;left:16px;bottom:14px;z-index:150;font-size:12px;color:var(--faint);}
+  #hint.dark{color:#888;}
+  #dots{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:150;display:flex;flex-direction:column;gap:6px;}
+  #dots a{width:9px;height:9px;border-radius:50%;background:var(--line);border:1px solid #d6d2ca;cursor:pointer;transition:all .2s;}
+  #dots a:hover{transform:scale(1.4);}
+  #dots a.on{background:var(--teal);border-color:var(--teal-d);transform:scale(1.35);}
+  #dots.dark a{background:#444;border-color:#555;}
+  #dots.dark a.on{background:var(--teal);border-color:var(--teal);}
+  @media(max-width:900px){#dots{display:none;}}
+
+  .slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+    padding:5vh 5.5vw;overflow:auto;animation:fade .3s ease;}
+  .slide.active{display:flex;}
+  @keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  .kicker{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--coral);font-weight:600;margin-bottom:12px;}
+  .slide h2{font-size:clamp(26px,3.4vw,42px);font-weight:700;color:var(--teal);margin-bottom:8px;line-height:1.12;}
+  .lede{font-size:clamp(15px,1.25vw,18px);color:var(--muted);margin-bottom:3vh;max-width:64ch;}
+  .cols{display:grid;grid-template-columns:minmax(300px,34%) 1fr;gap:3vw;align-items:start;flex:1;min-height:0;}
+  @media(max-width:880px){.slide{padding:4vh 5vw;}.cols{grid-template-columns:1fr;gap:20px;}}
+
+  .notes .note{font-size:16px;color:var(--ink);background:var(--card);border:1px solid var(--line);
+    border-left:3px solid var(--teal);border-radius:8px;padding:15px 17px;margin-bottom:14px;}
+  .notes .note b{color:var(--teal-d);}
+  .points{list-style:none;}
+  .points li{position:relative;padding-left:22px;margin-bottom:14px;font-size:17px;color:var(--ink);}
+  .points li::before{content:"";position:absolute;left:0;top:9px;width:8px;height:8px;border-radius:2px;background:var(--coral);}
+  .points li b{color:var(--teal-d);}
+  .takeaway{font-size:15px;font-style:italic;color:var(--muted);margin-top:16px;border-top:1px solid var(--hair);padding-top:14px;}
+  .cite{font-size:12px;color:var(--faint);white-space:nowrap;}
+
+  .viz{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px 16px;}
+  .viz-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:14px;}
+  .chart-wrap{position:relative;height:clamp(300px,46vh,540px);}
+  .chart-wrap.half{height:clamp(240px,34vh,400px);}
+  .fieldwrap{position:relative;height:clamp(300px,46vh,540px);}
+  .fieldwrap.half{height:clamp(220px,32vh,380px);}
+  .fieldwrap canvas{width:100%;height:100%;display:block;border-radius:8px;background:#FBFAF7;border:1px solid var(--hair);}
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media(max-width:880px){.duo{grid-template-columns:1fr;}}
+  .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .trio .fieldwrap{height:clamp(170px,26vh,320px);}
+  @media(max-width:880px){.trio{grid-template-columns:1fr;}}
+  .panelcap{font-size:12px;color:var(--muted);text-align:center;margin-top:7px;}
+  .imgwrap{position:relative;height:clamp(300px,46vh,540px);border:1px solid var(--hair);border-radius:8px;background:#FBFAF7;overflow:hidden;}
+  .imgwrap.half{height:clamp(220px,32vh,380px);}
+  .imgwrap img{width:100%;height:100%;object-fit:contain;display:block;}
+  .duo .imgwrap,.trio .imgwrap{height:clamp(170px,26vh,320px);}
+  @media(max-width:880px){.s5c-grid{grid-template-columns:1fr 1fr !important;}}
+  .controls{display:flex;gap:26px;align-items:center;flex-wrap:wrap;margin-bottom:16px;}
+  .ctrl{display:flex;align-items:center;gap:10px;}
+  .ctrl label{font-size:13px;color:var(--muted);white-space:nowrap;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:140px;height:5px;background:var(--line);border-radius:3px;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+    background:var(--teal);cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 1px var(--teal);}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--teal);cursor:pointer;border:2px solid #fff;}
+  .val{font-size:13px;font-weight:600;color:var(--ink);min-width:42px;}
+  button.act{font-family:inherit;font-size:13px;font-weight:600;color:#fff;background:var(--teal-d);border:none;border-radius:8px;padding:9px 16px;cursor:pointer;transition:background .15s;}
+  button.act:hover{background:#168561;}
+  button.ghost{font-family:inherit;font-size:13px;font-weight:600;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 15px;cursor:pointer;transition:all .15s;}
+  button.ghost.on{background:var(--teal);color:#fff;border-color:var(--teal);}
+  .tabs{display:flex;gap:9px;margin-bottom:16px;flex-wrap:wrap;}
+  .stat-row{display:flex;gap:11px;margin-top:14px;flex-wrap:wrap;}
+  .pill{font-size:13px;padding:5px 13px;border-radius:20px;border:1px solid var(--line);color:#666;background:var(--bg);}
+  .pill b{font-weight:600;color:var(--ink);}
+  .pill.good{border-color:var(--teal);color:var(--teal-d);background:#E8F8F6;}
+  .pill.bad{border-color:var(--coral);color:#b8501f;background:#FBEDE6;}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--hair);}
+  .leg{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);}
+  .leg .ln{width:22px;height:3px;display:inline-block;border-radius:1px;}
+  .leg .ds{width:22px;border-top:2px dashed;display:inline-block;}
+  .leg .sw{width:12px;height:12px;border-radius:3px;display:inline-block;}
+
+  .hero{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;padding:6vh 6vw;background:var(--coral);color:#fff;overflow:hidden;}
+  .hero.active{display:flex;}
+  .hero h1{font-size:clamp(40px,6vw,72px);font-weight:700;line-height:1.04;max-width:14ch;z-index:2;}
+  .hero .sub{font-size:clamp(18px,2.2vw,26px);font-weight:400;margin-top:18px;opacity:.94;z-index:2;}
+  .hero .meta{font-size:15px;margin-top:6vh;opacity:.88;z-index:2;}
+  .hero canvas{position:absolute;right:0;top:0;width:58%;height:100%;opacity:.9;z-index:1;}
+  @media(max-width:880px){.hero canvas{opacity:.22;width:100%;}}
+
+  .dark{background:#212121;color:#fff;}
+  .dark h2{color:#fff;} .dark .lede{color:#bbb;}
+  .recap{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:2vh;}
+  @media(max-width:880px){.recap{grid-template-columns:1fr;}}
+  .rcard{background:#2c2c2c;border-radius:16px;padding:26px;}
+  .rcard .num{font-size:52px;font-weight:700;color:var(--teal);line-height:1;}
+  .rcard h3{font-size:20px;margin:10px 0 12px;}
+  .rcard p{font-size:15px;color:#bbb;}
+  .rspark{height:54px;margin-top:16px;}
+  .rspark canvas{width:100%;height:100%;display:block;}
+
+  .refgrid{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+  @media(max-width:880px){.refgrid{grid-template-columns:1fr;}}
+  .refcol h4{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--coral);margin-bottom:14px;}
+  .ref{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 16px;margin-bottom:7px;}
+  .ref .t{font-size:14.5px;font-weight:600;color:var(--ink);}
+  .ref .d{font-size:12px;color:var(--muted);margin-top:2px;}
+  .brand{font-weight:700;color:var(--coral);}
+
+  /* OpenWeather logo watermark — shown on every slide */
+  #brandlogo{position:fixed;top:14px;right:18px;z-index:160;pointer-events:none;
+    opacity:.9;transition:opacity .25s ease;}
+  #brandlogo img{display:block;width:118px;height:auto;}
+  @media(max-width:880px){#brandlogo img{width:88px;}#brandlogo{top:10px;right:12px;opacity:.85;}}
+
+  /* lightbox: click any image to zoom */
+  .imgwrap img{cursor:zoom-in;}
+  #lightbox{position:fixed;inset:0;z-index:400;background:rgba(18,18,18,.9);display:none;
+    flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:zoom-out;padding:3vh 3vw;}
+  #lightbox.open{display:flex;}
+  #lightbox img{max-width:94vw;max-height:88vh;width:auto;height:auto;border-radius:8px;
+    box-shadow:0 14px 60px rgba(0,0,0,.55);background:#fff;}
+  #lightbox .lbcap{font-size:13px;color:#ccc;max-width:80ch;text-align:center;}
+
+  /* formula popup (verification slide) */
+  #fpopup{position:fixed;inset:0;z-index:400;background:rgba(18,18,18,.55);display:none;align-items:center;justify-content:center;padding:4vh 4vw;}
+  #fpopup.open{display:flex;}
+  #fpopup .fbox{background:var(--card);border:1px solid var(--line);border-radius:14px;max-width:640px;width:100%;
+    padding:26px 30px;box-shadow:0 18px 60px rgba(0,0,0,.35);position:relative;}
+  #fpopup .fbox h3{color:var(--teal-d);font-size:18px;margin-bottom:6px;}
+  #fpopup .formula{font-size:19px;margin:10px 0 6px;color:var(--ink);font-family:Georgia,'Times New Roman',serif;font-style:italic;}
+  #fpopup .fdesc{font-size:13.5px;color:var(--muted);margin-bottom:14px;}
+  #fpopup .fclose{position:absolute;top:10px;right:14px;font-size:20px;color:var(--faint);cursor:pointer;background:none;border:none;}
+
+  /* production pipeline scheme (slide 14) */
+  .pipe{display:flex;align-items:stretch;gap:0;margin:6px 0 2px;}
+  .pipe .stage{flex:1;display:flex;flex-direction:column;gap:6px;}
+  .pipe .pbox{background:var(--bg);border:1.5px solid var(--line);border-radius:9px;padding:8px 10px;font-size:12.5px;line-height:1.3;text-align:center;}
+  .pipe .pbox b{display:block;font-size:12.5px;color:var(--ink);}
+  .pipe .pbox span{color:var(--muted);font-size:11px;}
+  .pipe .pbox.hl{border-color:var(--teal);background:#E8F8F6;}
+  .pipe .pbox.out{border-color:var(--coral);background:#FBEDE6;}
+  .pipe .parr{align-self:center;flex:0 0 26px;text-align:center;color:var(--gray);font-size:17px;font-weight:700;}
+
+  /* clickable references */
+  a.ref{display:block;text-decoration:none;color:inherit;position:relative;transition:border-color .15s,box-shadow .15s,transform .15s;}
+  a.ref:hover{border-color:var(--teal);box-shadow:0 4px 16px rgba(120,203,191,.28);transform:translateY(-2px);}
+  a.ref::after{content:"↗";position:absolute;top:13px;right:15px;font-size:13px;color:var(--faint);transition:color .15s;}
+  a.ref:hover::after{color:var(--teal-d);}
+  a.ref:hover .t{color:var(--teal-d);}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<nav id="dots"></nav>
+<div id="counter"></div>
+<div id="hint">← → / space · click to advance</div>
+<div id="brandlogo"><img id="brandlogoimg" alt="OpenWeather"></div>
+<div id="deck">
+<script>
+const OWLOGO={light:"data:image/png;base64,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",dark:"data:image/png;base64,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"};
+/* ============ SHARED ENGINE ============ */
+const C={ink:'#48484A',teal:'#78CBBF',tealD:'#1D9E75',blue:'#378ADD',coral:'#E8763A',gray:'#B4B2A9',
+  grid:'rgba(0,0,0,0.06)',tcol:'#999',band1:'rgba(120,203,191,0.18)',band2:'rgba(120,203,191,0.42)'};
+Chart.defaults.font.family="'Space Grotesk','Segoe UI',Arial,sans-serif";Chart.defaults.color=C.tcol;Chart.defaults.font.size=12;
+function seededRand(seed){let s=seed||1;return()=>{s=(s*16807)%2147483647;return (s-1)/2147483646;};}
+function gaussian(r){let u,v,s;do{u=r()*2-1;v=r()*2-1;s=u*u+v*v;}while(s>=1||s===0);return u*Math.sqrt(-2*Math.log(s)/s);}
+function linspace(a,b,n){return Array.from({length:n},(_,i)=>a+(b-a)*i/(n-1));}
+function stats(arr){const v=[...arr].sort((a,b)=>a-b),n=v.length;const mean=v.reduce((s,x)=>s+x,0)/n;
+  const med=n%2?v[(n-1)/2]:(v[n/2-1]+v[n/2])/2;const pct=p=>v[Math.min(Math.floor(p*n/100),n-1)];
+  const std=Math.sqrt(v.reduce((s,x)=>s+(x-mean)**2,0)/n);return{v,mean,med,std,p10:pct(10),p25:pct(25),p75:pct(75),p90:pct(90)};}
+const axis=(t)=>({grid:{color:C.grid},border:{color:'rgba(0,0,0,.08)'},ticks:{color:C.tcol,font:{size:12}},title:{display:!!t,text:t||'',color:C.tcol,font:{size:12}}});
+const erf=x=>{const t=1/(1+0.3275911*Math.abs(x));const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return x>=0?y:-y;};
+
+/* ---- synthetic precipitation fields (seeded, deterministic) ---- */
+function noise2D(seed){
+  const hash=(x,y)=>{let k=(x*374761393+y*668265263+seed*974711)|0;k=(k^(k>>>13))>>>0;k=(k*1274126177)>>>0;return (k%100000)/100000;};
+  const sm=t=>t*t*(3-2*t);
+  return (x,y)=>{const x0=Math.floor(x),y0=Math.floor(y),fx=sm(x-x0),fy=sm(y-y0);
+    const v00=hash(x0,y0),v10=hash(x0+1,y0),v01=hash(x0,y0+1),v11=hash(x0+1,y0+1);
+    return (v00*(1-fx)+v10*fx)*(1-fy)+(v01*(1-fx)+v11*fx)*fy;};
+}
+/* fractal (multi-octave) noise: returns f(x,y) in ~[0,1]; x,y in field units */
+function fbm(seed,oct=4){const n=noise2D(seed);return (x,y)=>{let s=0,a=1,f=1,norm=0;
+  for(let o=0;o<oct;o++){s+=a*n(x*f+o*17.31,y*f+o*9.17);norm+=a;a*=.55;f*=2.1;}return s/norm;};}
+/* rain field grid: Float32Array(nx*ny), values 0..1 (0 = dry). scale ≈ number of weather systems across domain */
+function rainField(seed,nx,ny,{scale=3,thresh=0.52,gain=2.4,oct=4}={}){
+  const f=fbm(seed,oct);const g=new Float32Array(nx*ny);
+  for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const v=f(i/nx*scale,j/ny*scale);
+    g[j*nx+i]=Math.max(0,Math.min(1,(v-thresh)*gain/(1-thresh)));}
+  return g;}
+/* gaussian blob added onto a grid (cx,cy in 0..1 units, r relative) */
+function addBlob(g,nx,ny,cx,cy,r,amp){for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
+  const dx=(i/nx-cx),dy=(j/ny-cy);const v=amp*Math.exp(-(dx*dx+dy*dy)/(2*r*r));
+  const k=j*nx+i;g[k]=Math.min(1,g[k]+v);}return g;}
+function sampleBilinear(g,nx,ny,x,y){ /* x,y in grid coords (can be fractional); clamped */
+  const x0=Math.max(0,Math.min(nx-1,Math.floor(x))),y0=Math.max(0,Math.min(ny-1,Math.floor(y)));
+  const x1=Math.min(nx-1,x0+1),y1=Math.min(ny-1,y0+1);const fx=Math.max(0,Math.min(1,x-x0)),fy=Math.max(0,Math.min(1,y-y0));
+  return (g[y0*nx+x0]*(1-fx)+g[y0*nx+x1]*fx)*(1-fy)+(g[y1*nx+x0]*(1-fx)+g[y1*nx+x1]*fx)*fy;}
+/* box blur a grid, radius in cells */
+function blurGrid(g,nx,ny,rad){if(rad<=0)return g.slice?g.slice():new Float32Array(g);
+  const tmp=new Float32Array(nx*ny),out=new Float32Array(nx*ny);const r=Math.round(rad);
+  for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){let s=0,c=0;for(let k=-r;k<=r;k++){const ii=i+k;if(ii>=0&&ii<nx){s+=g[j*nx+ii];c++;}}tmp[j*nx+i]=s/c;}
+  for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){let s=0,c=0;for(let k=-r;k<=r;k++){const jj=j+k;if(jj>=0&&jj<ny){s+=tmp[jj*nx+i];c++;}}out[j*nx+i]=s/c;}
+  return out;}
+/* colormap: intensity 0..1 -> [r,g,b,a]; light-theme radar ramp in deck palette */
+function rainRGBA(v){
+  if(v<=0.03)return [0,0,0,0];
+  const stops=[[0.03,214,239,235,90],[0.20,120,203,191,200],[0.45,55,138,221,235],[0.70,232,118,58,245],[1.0,150,40,25,255]];
+  let a=stops[0],b=stops[stops.length-1];
+  for(let k=0;k<stops.length-1;k++){if(v>=stops[k][0]&&v<=stops[k+1][0]){a=stops[k];b=stops[k+1];break;}}
+  const t=(v-a[0])/((b[0]-a[0])||1);
+  return [Math.round(a[1]+(b[1]-a[1])*t),Math.round(a[2]+(b[2]-a[2])*t),Math.round(a[3]+(b[3]-a[3])*t),Math.round(a[4]+(b[4]-a[4])*t)];}
+/* size a canvas to its CSS box * devicePixelRatio; returns 2d ctx with CSS-pixel coordinates */
+function sizeCanvas(cv){const r=cv.getBoundingClientRect();cv.width=Math.max(2,r.width*devicePixelRatio);cv.height=Math.max(2,r.height*devicePixelRatio);
+  const ctx=cv.getContext('2d');ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);return ctx;}
+/* render a grid to a canvas region (CSS px). Uses an offscreen buffer for crisp scaling. */
+function drawField(ctx,grid,nx,ny,x,y,w,h,{colormap=rainRGBA,smooth=true,bg=null}={}){
+  const off=drawField._off||(drawField._off=document.createElement('canvas'));
+  off.width=nx;off.height=ny;const octx=off.getContext('2d');
+  const img=octx.createImageData(nx,ny);
+  for(let k=0;k<nx*ny;k++){const c=colormap(grid[k]);img.data[4*k]=c[0];img.data[4*k+1]=c[1];img.data[4*k+2]=c[2];img.data[4*k+3]=c[3];}
+  octx.putImageData(img,0,0);
+  if(bg){ctx.fillStyle=bg;ctx.fillRect(x,y,w,h);}
+  ctx.save();ctx.imageSmoothingEnabled=smooth;ctx.drawImage(off,x,y,w,h);ctx.restore();}
+const SLIDE_INIT={};
+</script>
+
+<!-- ===== SLIDE 1 · HERO ===== -->
+<header class="hero" id="s1" data-dark="1">
+  <canvas id="heroCanvas"></canvas>
+  <h1>Precipitation Detection &amp; Nowcasting</h1>
+  <div class="sub">How do we know it's about to rain — and where exactly?</div>
+  <div class="meta">40 min · Data &amp; ML · <span style="color:#fff;font-weight:700">OpenWeather</span></div>
+</header>
+<script>
+SLIDE_INIT['s1']=function(){
+  const cv=document.getElementById('heroCanvas');const ctx=cv.getContext('2d');
+  function size(){cv.width=cv.clientWidth*devicePixelRatio;cv.height=cv.clientHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
+  size();addEventListener('resize',size);
+  /* drifting rain cells, drawn as soft white echoes over the coral hero */
+  const nx=96,ny=64,f=fbm(11,4);let t=0;
+  (function draw(){const w=cv.clientWidth,h=cv.clientHeight;ctx.clearRect(0,0,w,h);
+    const cw=w/nx,chh=h/ny;
+    for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
+      const v=f(i/nx*3+t*0.018,j/ny*2.2+t*0.003);
+      const r=Math.max(0,(v-0.56)*2.6);
+      if(r>0.02){ctx.fillStyle='rgba(255,255,255,'+Math.min(0.55,r*0.75).toFixed(3)+')';
+        ctx.fillRect(i*cw,j*chh,cw+0.5,chh+0.5);}}
+    /* radar sweep line */
+    const cx2=w*0.52,cy2=h*0.5,R=Math.min(w,h)*0.46,ang=t*0.02;
+    ctx.strokeStyle='rgba(255,255,255,0.35)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(cx2,cy2,R,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx2,cy2);ctx.lineTo(cx2+R*Math.cos(ang),cy2+R*Math.sin(ang));
+    ctx.strokeStyle='rgba(255,255,255,0.8)';ctx.lineWidth=2;ctx.stroke();
+    t++;requestAnimationFrame(draw);})();
+};
+</script>
+
+<!-- ===== SLIDE 1b · 00 MOTIVATION ===== -->
+<section class="slide" id="s1b">
+  <div class="kicker">00 · Motivation</div>
+  <h2>The storms that matter are invisible to NWP</h2>
+  <p class="lede">A single-cell storm is a few kilometres wide and lives under an hour. On a global model grid it simply doesn't exist — yet these are the storms that bring hail, downbursts and flash floods.</p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>Convective scales:</b> single cells ~2–10 km across, 30–60 min lifetime; even a supercell's damaging core (hail shaft, mesocyclone) stays km-scale.</li>
+        <li><b>NWP scales:</b> global models run at Δx ≈ 10–25 km, and a feature needs ~5–7 grid lengths to survive — anything under ~50 km gets averaged away. Km-scale regional models help, but trigger convection in the wrong place at the wrong time.</li>
+        <li><b>The mismatch is the damage:</b> hail, downbursts, flash floods, tornadoes — most short-fuse warnings live exactly at the scales the grid can't hold.</li>
+      </ul>
+      <p class="takeaway">Comment: coarsen the grid — an 80 mm/h core melts into drizzle. That's why the first hours belong to observations, not physics.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">What the model grid sees — same storm, averaged onto Δ-km boxes</div>
+      <div class="controls">
+        <div class="ctrl"><label>Grid spacing Δ</label><input type="range" id="s1bdx" min="2" max="32" step="2" value="16"><span class="val" id="s1bdxv">16 km</span></div>
+      </div>
+      <div class="fieldwrap"><canvas id="s1bcanvas"></canvas></div>
+      <div class="stat-row" id="s1bstats"></div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s1b']=function(){
+  const cv=document.getElementById('s1bcanvas'),dx=document.getElementById('s1bdx'),dxv=document.getElementById('s1bdxv'),stat=document.getElementById('s1bstats');
+  const nx=128,ny=88; /* fine field: 1 km per cell */
+  const truth=rainField(41,nx,ny,{scale:2.6,thresh:0.62,gain:1.1});
+  for(let k=0;k<nx*ny;k++)truth[k]*=0.22; /* faint stratiform backdrop */
+  addBlob(truth,nx,ny,0.60,0.42,0.022,1.0);  /* supercell core, ~7 km */
+  addBlob(truth,nx,ny,0.30,0.62,0.015,0.75); /* single cells */
+  addBlob(truth,nx,ny,0.44,0.24,0.012,0.60);
+  addBlob(truth,nx,ny,0.76,0.70,0.016,0.62);
+  const rate=v=>v*v*85; /* intensity -> mm/h, peak ≈ 85 */
+  function coarsen(d){const nxc=Math.ceil(nx/d),nyc=Math.ceil(ny/d),g=new Float32Array(nxc*nyc);
+    for(let J=0;J<nyc;J++)for(let I=0;I<nxc;I++){let s=0,c=0;
+      for(let j=J*d;j<Math.min(ny,(J+1)*d);j++)for(let i=I*d;i<Math.min(nx,(I+1)*d);i++){s+=truth[j*nx+i];c++;}
+      g[J*nxc+I]=s/c;}
+    return{g,nxc,nyc};}
+  function draw(){
+    const ctx=sizeCanvas(cv);const w=cv.clientWidth,h=cv.clientHeight;
+    const d=parseInt(dx.value,10),gap=14,top=18;
+    const pw=(w-gap)/2,ph=h-top;
+    const sc=Math.min(pw/nx,ph/ny),fw=nx*sc,fh=ny*sc;
+    const x1=(pw-fw)/2,x2=pw+gap+(pw-fw)/2,y0=top+(ph-fh)/2;
+    ctx.font='11px "Space Grotesk",sans-serif';ctx.fillStyle='#999';
+    ctx.fillText('radar reality · 1 km',x1+2,y0-8);
+    ctx.fillText('model grid · Δ = '+d+' km',x2+2,y0-8);
+    drawField(ctx,truth,nx,ny,x1,y0,fw,fh,{colormap:rainRGBA,bg:'rgba(0,0,0,0.03)'});
+    const{g,nxc,nyc}=coarsen(d);
+    drawField(ctx,g,nxc,nyc,x2,y0,fw,fh,{colormap:rainRGBA,smooth:false,bg:'rgba(0,0,0,0.03)'});
+    ctx.strokeStyle='rgba(0,0,0,0.06)';ctx.lineWidth=1;
+    for(let I=1;I<nxc;I++){const x=x2+I*d*sc;if(x<x2+fw){ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y0+fh);ctx.stroke();}}
+    for(let J=1;J<nyc;J++){const y=y0+J*d*sc;if(y<y0+fh){ctx.beginPath();ctx.moveTo(x2,y);ctx.lineTo(x2+fw,y);ctx.stroke();}}
+    let pT=0;for(let k=0;k<nx*ny;k++)pT=Math.max(pT,truth[k]);
+    let pC=0;for(let k=0;k<g.length;k++)pC=Math.max(pC,g[k]);
+    const rT=rate(pT),rC=rate(pC),frac=rC/rT;
+    const verdict=frac>0.5?'<span class="pill good">core survives on this grid</span>'
+      :frac>0.15?'<span class="pill bad">smeared — intensity badly underestimated</span>'
+      :'<span class="pill bad">the storm has effectively vanished</span>';
+    stat.innerHTML='<span class="pill">peak in reality <b>'+Math.round(rT)+' mm/h</b></span>'
+      +'<span class="pill">peak on the '+d+'-km grid <b>'+Math.round(rC)+' mm/h</b></span>'+verdict;
+  }
+  dxv.textContent=dx.value+' km';
+  dx.addEventListener('input',()=>{dxv.textContent=dx.value+' km';draw();});
+  addEventListener('resize',draw);
+  draw();
+};</script>
+
+<!-- ===== SLIDE 2 · 01 THE GAP ===== -->
+<section class="slide" id="s2">
+  <div class="kicker">01 · The gap</div>
+  <h2>Nowcasting fills the gap NWP can't</h2>
+  <p class="lede">The first hours are where classical weather models are weakest — they need time to spin up, and their grids are too coarse for individual storms. Nowcasting starts from what the sky is doing right now.</p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>0–6 h, observation-driven.</b> Extrapolate what radar and satellite see at this minute.</li>
+        <li><b>NWP is weak at the left edge:</b> assimilation spin-up, coarse grids, parameterized convection.</li>
+        <li>Operations blend both — the crossover sits around <b>2–6 h</b>.</li>
+      </ul>
+      <p class="takeaway">Comment: drag the lead time — near t=0 observations win; past a few hours physics takes over. Nowcasting owns the left edge.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">Skill vs lead time — where each method wins (illustrative)</div>
+      <div class="controls">
+        <div class="ctrl"><label>Lead time</label><input type="range" id="s2lead" min="0" max="12" step="0.5" value="1"><span class="val" id="s2leadv">+1.0 h</span></div>
+      </div>
+      <div class="chart-wrap"><canvas id="s2chart"></canvas></div>
+      <div class="stat-row" id="s2stats"></div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s2']=function(){
+  const cv=document.getElementById('s2chart'),lead=document.getElementById('s2lead'),leadv=document.getElementById('s2leadv'),stat=document.getElementById('s2stats');
+  const ncSkill=t=>0.95*Math.exp(-t/3.2)+0.03;
+  const nwSkill=t=>Math.min(0.68,0.62*(1-Math.exp(-t/2.2))+0.18);
+  const N=61,T=linspace(0,12,N);
+  const dsN=T.map(t=>({x:t,y:ncSkill(t)})),dsW=T.map(t=>({x:t,y:nwSkill(t)}));
+  const ch=new Chart(cv,{type:'line',data:{datasets:[
+    {label:'Nowcast',data:dsN,borderColor:C.teal,borderWidth:2.5,pointRadius:0,tension:.35,fill:false},
+    {label:'NWP',data:dsW,borderColor:C.blue,borderWidth:2.5,pointRadius:0,tension:.35,fill:false}
+  ]},options:{responsive:true,maintainAspectRatio:false,animation:false,
+    scales:{x:{type:'linear',min:0,max:12,ticks:{stepSize:2},...axis('lead time (h)')},y:{min:0,max:1,...axis('skill')}},
+    plugins:{legend:{display:false},annotation:{annotations:{
+      band:{type:'box',xMin:2,xMax:6,backgroundColor:C.band1,borderWidth:0},
+      cur:{type:'line',xMin:1,xMax:1,borderColor:C.ink,borderWidth:1.5,borderDash:[5,4]}
+    }}}}
+  });
+  function upd(){
+    const t=parseFloat(lead.value);
+    leadv.textContent='+'+t.toFixed(1)+' h';
+    const ann=ch.options.plugins.annotation.annotations.cur;ann.xMin=t;ann.xMax=t;
+    const ns=ncSkill(t),ws=nwSkill(t);
+    const verdict=ns>=ws?'<span class="pill good">observations lead here</span>':'<span class="pill bad">physics leads here</span>';
+    stat.innerHTML='<span class="pill">nowcast skill <b>'+ns.toFixed(2)+'</b></span><span class="pill">NWP skill <b>'+ws.toFixed(2)+'</b></span>'+verdict;
+    ch.update('none');
+  }
+  lead.addEventListener('input',upd);
+  upd();
+};</script>
+
+<!-- ===== SLIDE 3 · 02 WHY IT'S HARD ===== -->
+<section class="slide" id="s3">
+  <div class="kicker">02 · Why it's hard</div>
+  <h2>Two error sources, and skill that melts in minutes</h2>
+  <p class="lede">A nowcast can be wrong about the state <em>now</em>, and wrong about how it <em>evolves</em>. How fast skill decays depends on what kind of rain you're looking at.</p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>Error 1 — the analysis.</b> Radar artifacts, satellite indirectness, gaps between sensors.</li>
+        <li><b>Error 2 — the evolution.</b> Growth, decay and initiation are barely predictable at small scales.</li>
+        <li><b>Predictability rides on size:</b> a single cell (~5 km) lives ~30 min; a frontal band (~1000 km) persists for a day. The small, violent stuff dies fastest.</li>
+      </ul>
+      <p class="takeaway">Comment: the bigger the pattern, the longer it lives — and radar data confirms it (right, measured lifetimes vs scale).</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">Small lives short: size of a rain pattern vs how long it survives</div>
+      <div class="chart-wrap half" style="height:clamp(220px,30vh,340px)"><canvas id="s3chart"></canvas></div>
+      <div class="imgwrap" style="height:clamp(150px,21vh,250px);margin-top:12px"><img src="assets/gz2002-fig17-lifetime-scale.png" alt="Measured lifetime of precipitation patterns as a function of spatial scale"></div>
+      <div class="panelcap">The measured version: lifetime of radar-echo patterns grows with spatial scale · Germann &amp; Zawadzki, MWR 2002</div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s3']=function(){
+  const cv=document.getElementById('s3chart');
+  const pts=[
+    {n:'Single cell',x:5,y:30,g:'conv',d:'a shower: ~5 km, ~30 min'},
+    {n:'Multicell cluster',x:20,y:90,g:'conv',d:''},
+    {n:'Supercell',x:40,y:180,g:'conv',d:''},
+    {n:'Squall line / MCS',x:200,y:720,g:'mix',d:''},
+    {n:'Stratiform band',x:400,y:1200,g:'strat',d:''},
+    {n:'Frontal system',x:1200,y:2880,g:'strat',d:''}
+  ];
+  const col=g=>g==='conv'?C.coral:g==='strat'?C.tealD:C.blue;
+  const lbl={id:'s3lbl',afterDatasetsDraw(c){
+    const{ctx}=c;ctx.save();ctx.font='11px Space Grotesk,sans-serif';
+    pts.forEach((p,i)=>{
+      const px=c.scales.x.getPixelForValue(p.x),py=c.scales.y.getPixelForValue(p.y);
+      ctx.fillStyle=C.ink;
+      const w=ctx.measureText(p.n).width;
+      if(px+10+w>c.chartArea.right){ctx.textAlign='right';ctx.fillText(p.n,px-10,py+4);ctx.textAlign='left';}
+      else ctx.fillText(p.n,px+10,py+4);
+    });
+    ctx.restore();
+  }};
+  new Chart(cv,{type:'scatter',data:{datasets:[{
+    data:pts.map(p=>({x:p.x,y:p.y})),
+    pointBackgroundColor:pts.map(p=>col(p.g)),pointBorderColor:pts.map(p=>col(p.g)),
+    pointRadius:7,pointHoverRadius:8,showLine:false}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      scales:{
+        x:{type:'logarithmic',min:2,max:3000,...axis('size of the pattern (km)'),
+          ticks:{color:C.tcol,font:{size:11},callback:v=>([5,20,100,500,2000].includes(v)?v:null)}},
+        y:{type:'logarithmic',min:15,max:5000,...axis('how long it lives'),
+          afterBuildTicks:ax=>{ax.ticks=[30,120,720,2880].map(v=>({value:v}));},
+          ticks:{color:C.tcol,font:{size:11},callback:v=>(v===30?'30 min':v===120?'2 h':v===720?'12 h':v===2880?'2 days':v)}}
+      },
+      plugins:{legend:{display:false},tooltip:{enabled:false},annotation:{annotations:{
+        zone:{type:'box',xMin:2,xMax:60,yMin:15,yMax:300,backgroundColor:'rgba(232,118,58,0.07)',borderWidth:0,
+          label:{display:true,content:'convection: gone in minutes',position:{x:'center',y:'start'},color:'#b8501f',font:{size:11},backgroundColor:'transparent'}}
+      }}}},
+    plugins:[lbl]});
+};</script>
+
+<!-- ===== SLIDE 4 · 03 RADAR ===== -->
+<section class="slide" id="s4">
+  <div class="kicker">03 · Detection — radar</div>
+  <h2>Radar — sharp, direct-ish, and patchy</h2>
+  <p class="lede">Radar sees precipitation-sized drops at kilometre resolution every few minutes — the backbone of nowcasting. But reflectivity is not rain rate, beams misbehave, and coverage has holes.</p>
+  <div class="duo">
+    <div class="viz">
+      <div class="viz-title">dBZ is a log scale: every <b>+10 dBZ</b> ≈ <b>×4</b> the rain rate (Z = 200·R<sup>1.6</sup>)</div>
+      <div class="controls">
+        <div class="ctrl"><label>Reflectivity</label><input type="range" id="s4dbz" min="5" max="60" step="1" value="35"><span class="val" id="s4dbzv">35 dBZ</span></div>
+      </div>
+      <div class="fieldwrap half" style="height:clamp(200px,28vh,320px)"><canvas id="s4zr"></canvas></div>
+      <div class="stat-row" id="s4stats"></div>
+    </div>
+    <div class="viz">
+      <div class="viz-title">Synthetic radar composite — artifacts &amp; coverage</div>
+      <div class="tabs">
+        <button class="ghost" id="s4art">Show artifacts</button>
+        <button class="ghost" id="s4cov">Coverage map</button>
+      </div>
+      <div class="fieldwrap half"><canvas id="s4field"></canvas></div>
+      <p class="takeaway" style="margin-top:10px">Comment: radar is the sharpest source we have — where it exists, and when the beam behaves. Composites: MRMS (US), OPERA (EU).</p>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s4']=function(){
+  const dbzEl=document.getElementById('s4dbz'),dbzvEl=document.getElementById('s4dbzv'),statsEl=document.getElementById('s4stats');
+  const artBtn=document.getElementById('s4art'),covBtn=document.getElementById('s4cov'),fieldCv=document.getElementById('s4field');
+  const zrCv=document.getElementById('s4zr');
+  const zrR=d=>Math.pow(Math.pow(10,d/10)/200,1/1.6);
+  const DMIN=5,DMAX=60;
+  const cats=[
+    {to:20,n:'drizzle'},
+    {to:30,n:'light rain'},
+    {to:40,n:'moderate'},
+    {to:47,n:'heavy'},
+    {to:55,n:'violent'},
+    {to:60,n:'hail likely'}
+  ];
+  function cat(d){for(const c of cats)if(d<=c.to)return c.n;return 'hail likely';}
+  function ladderColor(d){ /* reuse the radar colormap, mapped by dBZ */
+    const v=Math.max(0.04,Math.min(1,(d-DMIN)/(DMAX-DMIN)));
+    const c=rainRGBA(v);return 'rgba('+c[0]+','+c[1]+','+c[2]+',1)';
+  }
+  function drawLadder(){
+    const ctx=sizeCanvas(zrCv),rc=zrCv.getBoundingClientRect(),w=rc.width,h=rc.height;
+    ctx.clearRect(0,0,w,h);ctx.fillStyle='#FBFAF7';ctx.fillRect(0,0,w,h);
+    const mL=34,mR=24,bx=mL,bw=w-mL-mR;
+    const by=h*0.40,bh=Math.min(56,h*0.20);
+    const X=d=>bx+(d-DMIN)/(DMAX-DMIN)*bw;
+    /* the color bar */
+    for(let px=0;px<bw;px++){const d=DMIN+px/bw*(DMAX-DMIN);ctx.fillStyle=ladderColor(d);ctx.fillRect(bx+px,by,1.5,bh);}
+    ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);
+    /* dBZ ticks above */
+    ctx.font='11px Space Grotesk,sans-serif';ctx.textAlign='center';
+    for(let d=10;d<=60;d+=10){
+      const x=X(d);
+      ctx.strokeStyle='rgba(0,0,0,.25)';ctx.beginPath();ctx.moveTo(x,by-6);ctx.lineTo(x,by);ctx.stroke();
+      ctx.fillStyle='#666';ctx.fillText(d,x,by-10);
+    }
+    ctx.fillStyle='#999';ctx.textAlign='left';ctx.fillText('dBZ (what radar measures)',bx,by-28);
+    /* mm/h below — same ticks, exponential values */
+    ctx.textAlign='center';
+    for(let d=10;d<=60;d+=10){
+      const x=X(d),r=zrR(d);
+      ctx.strokeStyle='rgba(0,0,0,.25)';ctx.beginPath();ctx.moveTo(x,by+bh);ctx.lineTo(x,by+bh+6);ctx.stroke();
+      ctx.fillStyle='#666';ctx.font='600 11px Space Grotesk,sans-serif';
+      ctx.fillText(r<1?r.toFixed(2):r<10?r.toFixed(1):Math.round(r),x,by+bh+18);
+    }
+    ctx.fillStyle='#999';ctx.font='11px Space Grotesk,sans-serif';ctx.textAlign='left';
+    ctx.fillText('mm/h (what people feel) — same steps, ×4 each',bx,by+bh+36);
+    /* category labels inside the bar */
+    ctx.font='10px Space Grotesk,sans-serif';ctx.textAlign='center';
+    let prev=DMIN;
+    cats.forEach(c=>{
+      const x=(X(prev)+X(c.to))/2;
+      ctx.fillStyle=c.to<=30?'#777':'#fff';
+      ctx.fillText(c.n,x,by+bh/2+3);
+      if(c.to<DMAX){ctx.strokeStyle='rgba(255,255,255,.5)';ctx.beginPath();ctx.moveTo(X(c.to),by);ctx.lineTo(X(c.to),by+bh);ctx.stroke();}
+      prev=c.to;
+    });
+    /* ×4 bracket illustration */
+    const d1=30,d2=40,ybr=by+bh+46;
+    ctx.strokeStyle=C.coral;ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(X(d1),ybr);ctx.lineTo(X(d1),ybr+7);ctx.lineTo(X(d2),ybr+7);ctx.lineTo(X(d2),ybr);ctx.stroke();
+    ctx.fillStyle=C.coral;ctx.font='600 11px Space Grotesk,sans-serif';ctx.textAlign='center';
+    ctx.fillText('+10 dBZ → ×4 rain',(X(d1)+X(d2))/2,ybr+21);
+    /* slider marker */
+    const d=+dbzEl.value,x=X(d),r=zrR(d);
+    ctx.fillStyle=C.ink;
+    ctx.beginPath();ctx.moveTo(x,by-8);ctx.lineTo(x-6,by-17);ctx.lineTo(x+6,by-17);ctx.closePath();ctx.fill();
+    ctx.strokeStyle=C.ink;ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(x,by-8);ctx.lineTo(x,by+bh+8);ctx.stroke();
+    ctx.font='600 12px Space Grotesk,sans-serif';ctx.textAlign=x>w-110?'right':'left';
+    const tx=x>w-110?x-9:x+9;
+    ctx.fillText(d+' dBZ = '+(r<1?r.toFixed(2):r<10?r.toFixed(1):Math.round(r))+' mm/h',tx,by-34);
+    ctx.textAlign='left';
+  }
+  function updateStats(dbz,r){
+    const c=cat(dbz),bad=c==='hail likely';
+    statsEl.innerHTML='<span class="pill"><b>'+dbz+' dBZ</b> → <b>'+(r<1?r.toFixed(2):r.toFixed(1))+' mm/h</b></span>'+
+      '<span class="pill'+(bad?' bad':'')+'">'+c+'</span>'+
+      '<span class="pill">a=200, b=1.6 are climate-dependent — the mapping itself is uncertain</span>';
+  }
+  function onSlide(){
+    const dbz=+dbzEl.value,r=zrR(dbz);
+    dbzvEl.textContent=dbz+' dBZ';
+    drawLadder();
+    updateStats(dbz,r);
+  }
+  dbzEl.addEventListener('input',onSlide);
+  addEventListener('resize',drawLadder);
+  const nxp=140,nyp=140;
+  const baseGrid=rainField(21,nxp,nyp,{scale:3.2});
+  const artGrid=(function(){
+    const out=new Float32Array(baseGrid);const rnd=seededRand(22);
+    for(let j=0;j<nyp;j++)for(let i=0;i<nxp;i++){
+      const dx=(i/nxp-0.5)*2,dy=(j/nyp-0.5)*2,dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist>1)continue;
+      const k=j*nxp+i,ang=Math.atan2(dy,dx);
+      if(ang>-0.35&&ang<0.35){out[k]=0;continue;}
+      if(dist>0.5&&dist<0.6)out[k]=Math.min(1,out[k]*1.6);
+    }
+    for(let c=0;c<6;c++){const a=rnd()*2*Math.PI,rr=rnd()*0.12;
+      const ci=Math.round((0.5+rr*Math.cos(a))*nxp),cj=Math.round((0.5+rr*Math.sin(a))*nyp);
+      if(ci>=0&&ci<nxp&&cj>=0&&cj<nyp)out[cj*nxp+ci]=0.85+rnd()*0.15;
+    }
+    return out;
+  })();
+  function drawPPI(art){
+    const rect=fieldCv.getBoundingClientRect(),w=rect.width,h=rect.height;
+    const ctx=sizeCanvas(fieldCv);
+    ctx.clearRect(0,0,w,h);ctx.fillStyle='#FBFAF7';ctx.fillRect(0,0,w,h);
+    const cx=w/2,cy=h/2,R=Math.min(w,h)/2*0.92;
+    const grid=art?artGrid:baseGrid;
+    ctx.save();ctx.beginPath();ctx.arc(cx,cy,R,0,2*Math.PI);ctx.clip();
+    drawField(ctx,grid,nxp,nyp,cx-R,cy-R,2*R,2*R,{});
+    ctx.restore();
+    ctx.strokeStyle='rgba(0,0,0,.12)';ctx.lineWidth=1;
+    for(let k=1;k<=4;k++){ctx.beginPath();ctx.arc(cx,cy,R*k/4,0,2*Math.PI);ctx.stroke();}
+    if(art){
+      ctx.save();ctx.strokeStyle='#666';ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,-0.35,0.35);ctx.closePath();ctx.stroke();
+      ctx.fillStyle='#666';ctx.font='11px Space Grotesk,sans-serif';
+      ctx.fillText('beam blocking',cx+R*0.5,cy-8);
+      ctx.strokeStyle='rgba(29,158,117,.55)';ctx.lineWidth=1.4;
+      ctx.beginPath();ctx.arc(cx,cy,R*0.55,0,2*Math.PI);ctx.stroke();
+      ctx.fillText('bright band',cx-R*0.35,cy+R*0.55+13);
+      ctx.fillText('clutter',cx+6,cy-R*0.12);
+      ctx.restore();
+    }
+  }
+  function drawCoverage(){
+    const rect=fieldCv.getBoundingClientRect(),w=rect.width,h=rect.height;
+    const ctx=sizeCanvas(fieldCv);
+    ctx.clearRect(0,0,w,h);ctx.fillStyle='#FBFAF7';ctx.fillRect(0,0,w,h);
+    const sites=[[0.18,0.22],[0.4,0.14],[0.62,0.24],[0.82,0.2],[0.24,0.56],[0.55,0.6],[0.78,0.7]];
+    const rad=Math.min(w,h)*0.13;
+    sites.forEach(([fx,fy])=>{
+      const x=fx*w,y=fy*h;
+      ctx.beginPath();ctx.arc(x,y,rad,0,2*Math.PI);
+      ctx.fillStyle='rgba(120,203,191,.18)';ctx.fill();
+      ctx.strokeStyle=C.teal;ctx.lineWidth=1.4;ctx.stroke();
+    });
+    const gaps=[[0.06,0.85],[0.62,0.42],[0.92,0.88]];
+    ctx.strokeStyle='rgba(232,118,58,.4)';ctx.lineWidth=1;
+    gaps.forEach(([fx,fy])=>{
+      const cx=fx*w,cy=fy*h,s=Math.min(w,h)*0.11;
+      ctx.save();ctx.beginPath();ctx.rect(cx-s,cy-s,2*s,2*s);ctx.clip();
+      ctx.beginPath();
+      for(let o=-2*s;o<=2*s;o+=6){ctx.moveTo(cx-s+o,cy-s);ctx.lineTo(cx-s+o+2*s,cy+s);}
+      ctx.stroke();ctx.restore();
+    });
+    ctx.fillStyle='#b8501f';ctx.font='11px Space Grotesk,sans-serif';
+    ctx.fillText('no coverage',gaps[0][0]*w-4,gaps[0][1]*h-Math.min(w,h)*0.11-6);
+    ctx.fillStyle='#999';ctx.font='11px Space Grotesk,sans-serif';
+    ctx.fillText('~radar networks',8,14);
+  }
+  function render(){
+    if(covBtn.classList.contains('on'))drawCoverage();
+    else drawPPI(artBtn.classList.contains('on'));
+  }
+  artBtn.addEventListener('click',()=>{if(covBtn.classList.contains('on'))return;artBtn.classList.toggle('on');render();});
+  covBtn.addEventListener('click',()=>{
+    covBtn.classList.toggle('on');
+    const cov=covBtn.classList.contains('on');
+    artBtn.disabled=cov;artBtn.style.opacity=cov?'.45':'1';
+    render();
+  });
+  window.addEventListener('resize',render);
+  onSlide();render();
+};</script>
+
+<!-- ===== SLIDE 4b · 04 PRODUCTS ===== -->
+<section class="slide" id="s4b">
+  <div class="kicker">04 · Products</div>
+  <h2>Composites are the product — MRMS &amp; OPERA</h2>
+  <p class="lede">Nobody consumes a single radar. Operational products fuse hundreds of them into one map — and that map ends exactly where the radars end.</p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>MRMS</b> (NOAA): ~180 US + Canada radars fused with gauges, NWP and lightning → <b>1 km / 2 min</b>, free and open. The de-facto training and verification target for DL nowcasting (MetNet, NowcastNet, DGMR-US).</li>
+        <li><b>OPERA</b> (EUMETNET): ~200 radars from 30+ countries in one pan-European composite, <b>2 km / 15 min</b>, harmonized via the ODIM standard — as much diplomacy as physics. EURADCLIM adds gauge adjustment on top.</li>
+        <li><b>Every serious met service has one:</b> <b>RADOLAN</b> (Germany, 1 km/5 min, gauge-adjusted), <b>UKPP</b> (UK Met Office), <b>CombiPrecip</b> (Switzerland), <b>JMA HRPN</b> (Japan — down to 250 m/5 min), <b>Rainfields</b> (Australia), <b>SWAN</b> (China). Same recipe everywhere: mosaic → QC → gauge adjustment.</li>
+        <li><b>Coverage follows wealth:</b> North America, Europe, East Asia — and hard nothing over oceans, most of Africa and South America. There is <b>no global radar composite</b>; the closest thing is satellite (IMERG / GSMaP). <span class="cite">Saltikoff et al., BAMS 2019</span></li>
+      </ul>
+      <p class="takeaway">Comment: middle panel — a year of radar rain over Europe; the sharp outer edge is not climate, it's where the radars stop.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">Two flagship composites — and the global reality</div>
+      <div class="trio">
+        <div><div class="imgwrap"><img src="assets/mrms-composite-noaa.png" alt="MRMS composite reflectivity, MCS over the US Midwest"></div><div class="panelcap">MRMS composite — MCS over the US Midwest · NOAA (public domain)</div></div>
+        <div><div class="imgwrap"><img src="assets/opera-euradclim-annual.png" alt="EURADCLIM annual precipitation over Europe from OPERA radars"></div><div class="panelcap">A year of OPERA radar rain (EURADCLIM, 2017) · Overeem et al. 2023 (CC-BY)</div></div>
+        <div><div class="imgwrap"><img src="assets/saltikoff-fig1-coverage.png" alt="Global weather radar coverage map"></div><div class="panelcap">Where the world has weather radar — and where it doesn't · Saltikoff et al., BAMS 2019</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 5 · 05 SATELLITES & GAUGES ===== -->
+<section class="slide" id="s5">
+  <div class="kicker">05 · Detection — satellites &amp; gauges</div>
+  <h2>Satellites &amp; gauges — global, but indirect</h2>
+  <p class="lede">Where there is no radar — most of the planet — nowcasting leans on satellites and gauges. Each source trades coverage against directness.</p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>Radar</b> (previous slides): sharp and frequent — but only inside its ~200-km circles. This is the reference the other sources fill in around.</li>
+        <li><b>Geostationary</b> (GOES, MSG/SEVIRI): every 5–15 min, whole disc — but it sees <b>cloud tops, not rain</b>.</li>
+        <li><b>Polar orbiters</b> (GPM core + constellation, merged into IMERG): calibrated precipitation, revisit measured in hours.</li>
+        <li><b>Gauges:</b> the point truth — accurate, sparse, uneven.</li>
+      </ul>
+      <p class="takeaway">Comment: toggle the layers — no single source is complete; operational nowcasting is a fusion problem, and most of the world has no radar at all.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">One storm, four views (synthetic)</div>
+      <div class="tabs">
+        <button class="ghost" id="s5rad">Radar</button>
+        <button class="ghost on" id="s5geo">Geostationary</button>
+        <button class="ghost" id="s5polar">Polar swath</button>
+        <button class="ghost" id="s5gauge">Gauges</button>
+      </div>
+      <div class="fieldwrap half"><canvas id="s5field"></canvas></div>
+      <div class="imgwrap" style="height:clamp(130px,18vh,210px);margin-top:10px"><img src="assets/imerg-climatology-nasa.jpg" alt="IMERG global precipitation climatology"></div>
+      <div class="panelcap">Satellite detection at planetary scale: IMERG mean precipitation, 2001–2019 · NASA SVS (public domain)</div>
+      <div class="stat-row" id="s5stats"></div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s5']=function(){
+  const radBtn=document.getElementById('s5rad'),geoBtn=document.getElementById('s5geo'),polarBtn=document.getElementById('s5polar'),gaugeBtn=document.getElementById('s5gauge');
+  const fieldCv=document.getElementById('s5field'),statsEl=document.getElementById('s5stats');
+  const nx=140,ny=100;
+  const truth=rainField(31,nx,ny,{scale:2.8});
+  const geoGrid=blurGrid(truth,nx,ny,6);
+  const radarSites=[[0.24,0.30],[0.52,0.62],[0.80,0.28]];
+  const radarR=0.21; /* in min(w,h) units */
+  function drawRadar(ctx,w,h){
+    const R=Math.min(w,h)*radarR;
+    ctx.save();ctx.beginPath();
+    radarSites.forEach(([fx,fy])=>{ctx.moveTo(fx*w+R,fy*h);ctx.arc(fx*w,fy*h,R,0,2*Math.PI);});
+    ctx.clip();
+    drawField(ctx,truth,nx,ny,0,0,w,h,{colormap:rainRGBA});
+    ctx.restore();
+    ctx.strokeStyle=C.tealD;ctx.lineWidth=1.3;ctx.setLineDash([4,3]);
+    radarSites.forEach(([fx,fy])=>{ctx.beginPath();ctx.arc(fx*w,fy*h,R,0,2*Math.PI);ctx.stroke();});
+    ctx.setLineDash([]);
+    ctx.fillStyle=C.tealD;ctx.font='11px Space Grotesk,sans-serif';
+    ctx.fillText('radar: sharp, but only in the circles',8,16);
+  }
+  function geoCM(v){if(v<=0.02)return[0,0,0,0];const t=Math.min(1,v*1.5);const g=Math.round(225-95*t);
+    return[g-6,g,Math.min(255,g+20),Math.round(60+150*t)];}
+  const gRnd=seededRand(34);
+  const gauges=Array.from({length:14},()=>({fx:0.06+gRnd()*0.88,fy:0.06+gRnd()*0.88}));
+  function drawPolar(ctx,w,h){
+    const c1=0.325,c2=0.675;
+    const y=(x,c)=>h*(1-2*c)+(h/w)*x;
+    ctx.save();ctx.globalAlpha=.22;
+    drawField(ctx,truth,nx,ny,0,0,w,h,{colormap:rainRGBA});
+    ctx.restore();
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(0,y(0,c1));ctx.lineTo(w,y(w,c1));ctx.lineTo(w,y(w,c2));ctx.lineTo(0,y(0,c2));ctx.closePath();
+    ctx.clip();
+    drawField(ctx,truth,nx,ny,0,0,w,h,{colormap:rainRGBA});
+    ctx.restore();
+    ctx.save();ctx.strokeStyle=C.teal;ctx.setLineDash([4,3]);ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(0,y(0,c1));ctx.lineTo(w,y(w,c1));ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,y(0,c2));ctx.lineTo(w,y(w,c2));ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+    ctx.fillStyle='#666';ctx.font='11px Space Grotesk,sans-serif';
+    ctx.fillText('GPM overpass',10,Math.max(12,y(10,c1)-6));
+  }
+  function drawGauges(ctx,w,h){
+    gauges.forEach((g,k)=>{
+      const gx=g.fx*(nx-1),gy=g.fy*(ny-1),v=sampleBilinear(truth,nx,ny,gx,gy);
+      const x=g.fx*w,y=g.fy*h;
+      if(v>0.15){ctx.beginPath();ctx.arc(x,y,4,0,2*Math.PI);ctx.fillStyle=C.teal;ctx.fill();}
+      else{ctx.beginPath();ctx.arc(x,y,3,0,2*Math.PI);ctx.strokeStyle=C.gray;ctx.lineWidth=1.2;ctx.stroke();}
+      if(k%4===0){ctx.fillStyle='#666';ctx.font='10px Space Grotesk,sans-serif';ctx.fillText((v*40).toFixed(1),x+6,y-6);}
+    });
+    ctx.fillStyle='#666';ctx.font='11px Space Grotesk,sans-serif';ctx.fillText('gauges',8,h-8);
+  }
+  function render(){
+    const rect=fieldCv.getBoundingClientRect(),w=rect.width,h=rect.height;
+    const ctx=sizeCanvas(fieldCv);
+    ctx.clearRect(0,0,w,h);ctx.fillStyle='#FBFAF7';ctx.fillRect(0,0,w,h);
+    if(geoBtn.classList.contains('on'))drawField(ctx,geoGrid,nx,ny,0,0,w,h,{colormap:geoCM});
+    if(radBtn.classList.contains('on'))drawRadar(ctx,w,h);
+    if(polarBtn.classList.contains('on'))drawPolar(ctx,w,h);
+    if(gaugeBtn.classList.contains('on'))drawGauges(ctx,w,h);
+  }
+  function updateStats(){
+    let html='';
+    if(radBtn.classList.contains('on'))html+='<span class="pill">radar <b>sharp · patchy</b></span>';
+    if(geoBtn.classList.contains('on'))html+='<span class="pill">geo <b>full disc · indirect</b></span>';
+    if(polarBtn.classList.contains('on'))html+='<span class="pill">polar <b>calibrated · rare</b></span>';
+    if(gaugeBtn.classList.contains('on'))html+='<span class="pill">gauges <b>truth · sparse</b></span>';
+    statsEl.innerHTML=html||'<span class="pill">no layer selected</span>';
+  }
+  [radBtn,geoBtn,polarBtn,gaugeBtn].forEach(b=>b.addEventListener('click',()=>{b.classList.toggle('on');render();updateStats();}));
+  window.addEventListener('resize',render);
+  render();updateStats();
+};</script>
+
+<!-- ===== SLIDE 5b · 05 STITCHING ===== -->
+<section class="slide" id="s5b">
+  <div class="kicker">06 · Stitching</div>
+  <h2>One seamless map — stitching radars and satellites</h2>
+  <p class="lede">Radar coverage is a set of circles, not a map. In practice you mosaic the radars, reconstruct radar-like precipitation from satellite imagery everywhere else — and then hide the seams. <span class="cite">Yandex Meteum, Habr 2020</span></p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>Mosaic first:</b> each radar sees ~200–250 km; between the circles there is simply no data (see the Russia/Belarus coverage map).</li>
+        <li><b>Satellite fills the gaps:</b> a neural net turns geostationary imagery into radar-like precipitation fields, extending the nowcast beyond radar range.</li>
+        <li><b>Hide the seams:</b> alpha-blending plus a U-Net inpainting model (NVIDIA partial convolutions) redraws the radar–satellite transition zone — the tell-tale semicircles vanish.</li>
+      </ul>
+      <p class="takeaway">Comment: middle vs right — same moment, with and without neural stitching. Users never see where the radar ends.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">Coverage → naive merge → neural stitching (Yandex Weather)</div>
+      <div class="trio">
+        <div><div class="imgwrap"><img src="assets/habr/y2025-radar-coverage-russia-belarus.png" alt="Radar coverage, Russia and Belarus"></div><div class="panelcap">Weather-radar coverage, Russia &amp; Belarus · Habr 2025</div></div>
+        <div><div class="imgwrap"><img src="assets/habr/y2020-radar-satellite-stitch-before.png" alt="Radar-satellite merge without neural stitching"></div><div class="panelcap">Radar + satellite, no stitching — seams visible · Habr 2020</div></div>
+        <div><div class="imgwrap"><img src="assets/habr/y2020-radar-satellite-stitch-after.png" alt="Radar-satellite merge with neural inpainting"></div><div class="panelcap">With neural inpainting — seamless · Habr 2020</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 5c · 06 TOOLBOX ===== -->
+<section class="slide" id="s5c">
+  <div class="kicker">07 · Toolbox</div>
+  <h2>Four ways to move rain forward</h2>
+  <p class="lede">Every nowcasting system — pySTEPS, Yandex, Google — is built from these four moves. The rest of this talk walks through them left to right.</p>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:26px" class="s5c-grid">
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 15px">
+      <div class="kicker" style="margin-bottom:6px">1 · Persistence</div>
+      <div style="font-weight:700;margin-bottom:8px">Assume nothing moves</div>
+      <div style="font-size:13.5px;color:var(--muted);margin-bottom:10px">The last radar frame <em>is</em> the forecast.</div>
+      <div class="pill good" style="display:inline-block;margin-bottom:6px">free, honest baseline</div>
+      <div class="pill bad" style="display:inline-block">dead in ~20 min for convection</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 15px">
+      <div class="kicker" style="margin-bottom:6px">2 · Advection</div>
+      <div style="font-weight:700;margin-bottom:8px">Estimate motion, slide the frame</div>
+      <div style="font-size:13.5px;color:var(--muted);margin-bottom:10px">Optical flow (Lucas–Kanade, VET, DIS) + semi-Lagrangian advection.</div>
+      <div class="pill good" style="display:inline-block;margin-bottom:6px">sharp &amp; cheap, strong first hour</div>
+      <div class="pill bad" style="display:inline-block">can't grow, decay or initiate</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 15px">
+      <div class="kicker" style="margin-bottom:6px">3 · Stochastic ensemble</div>
+      <div style="font-weight:700;margin-bottom:8px">Advect + noise where skill dies</div>
+      <div style="font-size:13.5px;color:var(--muted);margin-bottom:10px">STEPS: keep predictable scales, replace the rest with correlated noise, run 20+ members.</div>
+      <div class="pill good" style="display:inline-block;margin-bottom:6px">honest probabilities</div>
+      <div class="pill bad" style="display:inline-block">detail is noise, still no initiation</div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 15px">
+      <div class="kicker" style="margin-bottom:6px">4 · Neural nets</div>
+      <div style="font-weight:700;margin-bottom:8px">Learn evolution from data</div>
+      <div style="font-size:13.5px;color:var(--muted);margin-bottom:10px">Millions of radar sequences teach growth, decay — and initiation. Generative models keep it sharp.</div>
+      <div class="pill good" style="display:inline-block;margin-bottom:6px">learns what physics we can't run</div>
+      <div class="pill bad" style="display:inline-block">data-hungry; blurs unless generative</div>
+    </div>
+  </div>
+  <p class="takeaway" style="margin-top:22px">Comment: production systems chain these — Yandex went optical flow → neural net; pySTEPS blends ensemble with NWP; Google went straight to neural. More capability costs more machinery, left to right.</p>
+</section>
+
+<!-- ===== SLIDE 6 · 07 OPTICAL FLOW ===== -->
+<section class="slide" id="s6">
+  <div class="kicker">08 · Optical flow</div>
+  <h2>Optical flow — the classical workhorse</h2>
+  <p class="lede">Estimate a motion field from the last few radar frames, then advect the newest frame along it. In pySTEPS that's Lucas–Kanade or VET; Yandex ran a tuned Dense Inverse Search in production — for a while it even beat their first neural net.</p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>Motion estimation is a solved commodity:</b> Lucas–Kanade, VET, DARTS ship in pySTEPS; Yandex used DIS — cheap enough to rerun every radar update.</li>
+        <li><b>Then just advect:</b> slide the latest field along the motion vectors (semi-Lagrangian scheme keeps it stable at long steps).</li>
+        <li><b>Strong at +10 min, fading after:</b> it only moves what already exists — no growth, no decay, no initiation.</li>
+      </ul>
+      <p class="takeaway">Comment: left — a real motion field over Finnish radar. Right — drag the lead time: the forecast tracks truth early, then reality grows away from it.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">Real motion field &amp; extrapolation in action</div>
+      <div class="controls">
+        <div class="ctrl"><label>Lead time</label><input type="range" id="s6lead" min="0" max="60" step="5" value="20"><span class="val" id="s6leadv">+20 min</span></div>
+      </div>
+      <div class="duo">
+        <div><div class="imgwrap" style="height:clamp(240px,36vh,430px)"><img src="assets/pysteps-optical-flow-lk.png" alt="Lucas-Kanade motion field over radar reflectivity"></div><div class="panelcap">Lucas–Kanade motion field over FMI radar · pySTEPS gallery (BSD)</div></div>
+        <div><div class="fieldwrap" style="height:clamp(240px,36vh,430px)"><canvas id="s6field"></canvas></div><div class="panelcap">Extrapolation demo — grey contour = truth (synthetic)</div></div>
+      </div>
+      <div class="stat-row" id="s6stats"></div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s6']=function(){
+  const nx=150,ny=100;
+  const base=rainField(41,nx,ny,{scale:3,thresh:.58});
+  addBlob(base,nx,ny,0.22,0.65,0.06,1.0);
+  const u=(x,y)=>0.9+0.25*Math.sin(y/ny*3),v=(x,y)=>-0.35+0.2*Math.cos(x/nx*2.5);
+  const cv=document.getElementById('s6field');
+  function advect(t,k){const g=new Float32Array(nx*ny);
+    for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)g[j*nx+i]=sampleBilinear(base,nx,ny,i-u(i,j)*k*t,j-v(i,j)*k*t);
+    return g;}
+  function outline(ctx,grid,w,h,level,color){
+    const cw=w/nx,ch=h/ny;ctx.fillStyle=color;
+    for(let j=0;j<ny;j++)for(let i=0;i<nx-1;i++){const a=grid[j*nx+i],b=grid[j*nx+i+1];
+      if((a-level)*(b-level)<0){const f=(level-a)/(b-a);ctx.fillRect((i+f)*cw-0.75,(j+0.5)*ch-0.75,1.5,1.5);}}
+    for(let j=0;j<ny-1;j++)for(let i=0;i<nx;i++){const a=grid[j*nx+i],b=grid[(j+1)*nx+i];
+      if((a-level)*(b-level)<0){const f=(level-a)/(b-a);ctx.fillRect((i+0.5)*cw-0.75,(j+f)*ch-0.75,1.5,1.5);}}
+  }
+  function arrows(ctx,w,h){
+    ctx.strokeStyle='rgba(35,35,38,.85)';ctx.fillStyle='rgba(35,35,38,.85)';ctx.lineWidth=1.3;
+    for(let a=0;a<8;a++)for(let b=0;b<5;b++){
+      const gx=(a+.5)/8*nx,gy=(b+.5)/5*ny,px=gx/nx*w,py=gy/ny*h;
+      const uu=u(gx,gy),vv=v(gx,gy),mag=Math.hypot(uu,vv)||1,len=9,dx=uu/mag*len,dy=vv/mag*len;
+      ctx.beginPath();ctx.moveTo(px-dx/2,py-dy/2);ctx.lineTo(px+dx/2,py+dy/2);ctx.stroke();
+      const ang=Math.atan2(dy,dx);
+      ctx.beginPath();ctx.moveTo(px+dx/2,py+dy/2);
+      ctx.lineTo(px+dx/2-4*Math.cos(ang-.4),py+dy/2-4*Math.sin(ang-.4));
+      ctx.lineTo(px+dx/2-4*Math.cos(ang+.4),py+dy/2-4*Math.sin(ang+.4));
+      ctx.closePath();ctx.fill();
+    }
+  }
+  function draw(){
+    const t=+s6lead.value;
+    const truth=advect(t,1.0),fc=advect(t,0.8);
+    const ctx=sizeCanvas(cv),rc=cv.getBoundingClientRect(),w=rc.width,h=rc.height;
+    drawField(ctx,fc,nx,ny,0,0,w,h,{bg:'#FBFAF7'});
+    outline(ctx,truth,w,h,0.25,'rgba(72,72,74,.6)');
+    arrows(ctx,w,h);
+    let se=0;for(let k=0;k<nx*ny;k++){const d=fc[k]-truth[k];se+=d*d;}
+    const rmse=Math.sqrt(se/(nx*ny))*100;
+    s6stats.innerHTML='<span class="pill '+(t>=35?'bad':'good')+'">RMSE vs truth <b>'+rmse.toFixed(1)+'</b></span><span class="pill">arrows = estimated motion field</span>';
+  }
+  s6lead.oninput=()=>{s6leadv.textContent='+'+s6lead.value+' min';draw();};
+  addEventListener('resize',draw);
+  draw();
+};</script>
+
+<!-- ===== SLIDE 7 · 06 STEPS / PYSTEPS ===== -->
+<section class="slide" id="s7">
+  <div class="kicker">09 · STEPS / PySTEPS</div>
+  <h2>PySTEPS — the open-source production baseline</h2>
+  <p class="lede">STEPS in practice: split the field into a scale cascade, keep what persists, replace the dying small scales with stochastic noise, run it 20+ times — an ensemble in minutes on a CPU. Operational at FMI, MeteoSwiss and others; the baseline every DL paper must beat. <span class="cite">Pulkkinen et al., GMD 2019</span></p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>Left — the real thing:</b> an FMI radar composite decomposed into its cascade levels (this is what the algorithm actually sees).</li>
+        <li><b>Stochastic + motion perturbations</b> → ensemble members; blend toward NWP as lead grows.</li>
+        <li><b>In practice you tune:</b> number of cascade levels, noise generator, motion perturbation amplitude — and it runs anywhere, for free.</li>
+      </ul>
+      <p class="takeaway">Comment: slide the lead time — detail dissolves into seeded noise and the 20% probability contour widens. Session 3's ensemble story, at nowcast scale.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">Real cascade decomposition &amp; a stochastic member (right: synthetic)</div>
+      <div class="controls">
+        <div class="ctrl"><label>Lead time</label><input type="range" id="s7lead" min="0" max="90" step="5" value="30"><span class="val" id="s7leadv">+30 min</span></div>
+      </div>
+      <div class="duo">
+        <div><div class="imgwrap" style="height:clamp(240px,36vh,430px)"><img src="assets/gmd-cascade-decomposition.png" alt="Cascade decomposition of FMI radar composite"></div><div class="panelcap">FMI composite → cascade levels · Pulkkinen et al., GMD 2019 (CC-BY)</div></div>
+        <div><div class="fieldwrap" style="height:clamp(240px,36vh,430px)"><canvas id="s7field"></canvas></div><div class="panelcap">Persisted large scales + stochastic detail (synthetic)</div></div>
+      </div>
+      <div class="stat-row" id="s7stats"></div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s7']=function(){
+  const nx=150,ny=100;
+  const full=rainField(51,nx,ny,{scale:2.6});
+  const big=blurGrid(full,nx,ny,8);
+  const small=new Float32Array(nx*ny);
+  for(let k=0;k<nx*ny;k++)small[k]=full[k]-big[k];
+  const ux=0.5,uy=-0.2;
+  const cv=document.getElementById('s7field');
+  function advect(g,t){const out=new Float32Array(nx*ny);
+    for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)out[j*nx+i]=sampleBilinear(g,nx,ny,i-ux*t,j-uy*t);
+    return out;}
+  function member(t,seedOff){
+    const k=1-Math.exp(-t/25);
+    const nseed=52+Math.floor(t/5)+seedOff;
+    const nfull=rainField(nseed,nx,ny,{scale:2.6});
+    const nbig=blurGrid(nfull,nx,ny,8);
+    const combo=new Float32Array(nx*ny);
+    for(let idx=0;idx<nx*ny;idx++){
+      const noise=nfull[idx]-nbig[idx];
+      combo[idx]=Math.max(0,Math.min(1,big[idx]+small[idx]*(1-k)+noise*k));
+    }
+    return advect(combo,t);
+  }
+  function outline(ctx,grid,w,h,level,color){
+    const cw=w/nx,ch=h/ny;ctx.fillStyle=color;
+    for(let j=0;j<ny;j++)for(let i=0;i<nx-1;i++){const a=grid[j*nx+i],b=grid[j*nx+i+1];
+      if((a-level)*(b-level)<0){const f=(level-a)/(b-a);ctx.fillRect((i+f)*cw-0.75,(j+0.5)*ch-0.75,1.5,1.5);}}
+    for(let j=0;j<ny-1;j++)for(let i=0;i<nx;i++){const a=grid[j*nx+i],b=grid[(j+1)*nx+i];
+      if((a-level)*(b-level)<0){const f=(level-a)/(b-a);ctx.fillRect((i+0.5)*cw-0.75,(j+f)*ch-0.75,1.5,1.5);}}
+  }
+  function draw(){
+    const t=+s7lead.value,M=12;
+    const field=member(t,0);
+    const P=new Float32Array(nx*ny);
+    for(let m=1;m<=M;m++){
+      const mf=member(t,m*37);
+      for(let idx=0;idx<nx*ny;idx++)if(mf[idx]>0.25)P[idx]+=1/M;
+    }
+    const ctx=sizeCanvas(cv),rc=cv.getBoundingClientRect(),w=rc.width,h=rc.height;
+    drawField(ctx,field,nx,ny,0,0,w,h,{bg:'#FBFAF7'});
+    outline(ctx,P,w,h,0.2,'rgba(29,158,117,.85)');
+    ctx.fillStyle=C.tealD;ctx.font='11px Space Grotesk';ctx.fillText('20% contour',8,14);
+    const k=1-Math.exp(-t/25),persisted=Math.round((1-k)*100);
+    s7stats.innerHTML='<span class="pill">% of variance persisted <b>'+persisted+'%</b></span><span class="pill">ensemble spread <b>'+(t>40?'widening':'narrow')+'</b></span>';
+  }
+  s7lead.oninput=()=>{s7leadv.textContent='+'+s7lead.value+' min';draw();};
+  addEventListener('resize',draw);
+  draw();
+};</script>
+
+<!-- ===== SLIDE 8 · 07 THE LIMIT ===== -->
+<section class="slide" id="s8">
+  <div class="kicker">10 · The limit</div>
+  <h2>What extrapolation can never do</h2>
+  <p class="lede">Advection moves rain that already exists. It cannot grow it, decay it, or start a new storm — and convective initiation is exactly what matters for warnings.</p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>No growth or decay</b> along the trajectory — intensity is frozen.</li>
+        <li><b>Convective initiation:</b> a cell born after t=0 is invisible to extrapolation.</li>
+        <li><b>Motion errors compound</b> with lead time.</li>
+      </ul>
+      <p class="takeaway">Comment: press play — truth grows a brand-new cell; the extrapolation never will. This gap is what deep learning targets.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">The cell it can't see (synthetic sequence)</div>
+      <div class="controls">
+        <button class="act" id="s8play">▶ Play</button>
+        <span class="val" id="s8time">t = 0 min</span>
+      </div>
+      <div class="duo">
+        <div><div class="fieldwrap half" style="height:clamp(180px,26vh,300px)"><canvas id="s8truth"></canvas></div><div class="panelcap">Truth — a new cell initiates</div></div>
+        <div><div class="fieldwrap half" style="height:clamp(180px,26vh,300px)"><canvas id="s8ext"></canvas></div><div class="panelcap">Extrapolation — moves what it saw at t=0</div></div>
+      </div>
+      <div class="stat-row" id="s8stats"></div>
+      <div class="imgwrap" style="height:clamp(150px,21vh,250px);margin-top:10px"><img src="assets/goes-supercell-small.gif" alt="GOES-16 loop of a supercell over Indiana"></div>
+      <div class="panelcap">The real thing: GOES-16 watches a supercell explode in under an hour — Indiana, Nov 2017 · NOAA/CIRA (public domain)</div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s8']=function(){
+  const nx=150,ny=100;
+  const base=rainField(61,nx,ny,{scale:3});
+  const ux=0.7,uy=-0.25;
+  const cvT=document.getElementById('s8truth'),cvE=document.getElementById('s8ext');
+  const smoothstep=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+  function advect(g,t){const out=new Float32Array(nx*ny);
+    for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)out[j*nx+i]=sampleBilinear(g,nx,ny,i-ux*t,j-uy*t);
+    return out;}
+  function truthAt(t){
+    const g=advect(base,t);
+    const amp=1.2*smoothstep((t-12)/10);
+    if(amp>0.001){const rad=0.03+0.06*smoothstep((t-12)/33);addBlob(g,nx,ny,0.6,0.55,rad,amp);}
+    for(let k=0;k<nx*ny;k++)g[k]=Math.min(1,g[k]);
+    return g;
+  }
+  let curT=0,rafId=null;
+  function drawFrame(t){
+    curT=t;
+    const ctxT=sizeCanvas(cvT),ctxE=sizeCanvas(cvE);
+    const rT=cvT.getBoundingClientRect(),rE=cvE.getBoundingClientRect();
+    const truth=truthAt(t),ext=advect(base,t);
+    drawField(ctxT,truth,nx,ny,0,0,rT.width,rT.height,{bg:'#FBFAF7'});
+    drawField(ctxE,ext,nx,ny,0,0,rE.width,rE.height,{bg:'#FBFAF7'});
+    if(t>=12){
+      const cx=0.6*rT.width,cy=0.55*rT.height,rad=0.03+0.06*smoothstep((t-12)/33),rpx=Math.max(8,rad*rT.width*1.6);
+      ctxT.strokeStyle=C.coral;ctxT.lineWidth=2;ctxT.beginPath();ctxT.arc(cx,cy,rpx,0,Math.PI*2);ctxT.stroke();
+      ctxT.fillStyle=C.coral;ctxT.font='11px Space Grotesk';ctxT.fillText('initiation',cx+rpx+4,cy);
+    }
+    document.getElementById('s8time').textContent='t = '+Math.round(t)+' min';
+    return truth;
+  }
+  function finish(truth){
+    let peak=0;for(let k=0;k<nx*ny;k++)if(truth[k]>peak)peak=truth[k];
+    peak*=40;
+    document.getElementById('s8stats').innerHTML='<span class="pill">truth peak <b>'+peak.toFixed(0)+' mm/h</b></span><span class="pill bad">extrapolation misses <b>the new cell</b></span>';
+  }
+  function play(){
+    if(rafId){cancelAnimationFrame(rafId);rafId=null;}
+    document.getElementById('s8stats').innerHTML='';
+    const T=45,dur=4000,start=performance.now();
+    function step(now){
+      const p=Math.min(1,(now-start)/dur),t=p*T;
+      const truth=drawFrame(t);
+      if(p<1)rafId=requestAnimationFrame(step);
+      else{rafId=null;finish(truth);}
+    }
+    rafId=requestAnimationFrame(step);
+  }
+  document.getElementById('s8play').onclick=play;
+  addEventListener('resize',()=>drawFrame(curT));
+  drawFrame(0);
+};</script>
+
+<!-- ===== SLIDE 9 · 08 DEEP LEARNING ===== -->
+<section class="slide" id="s9">
+  <div class="kicker">11 · Deep learning</div>
+  <h2>Neural nets — predict the next frames of the video</h2>
+  <p class="lede">The general idea is embarrassingly simple: radar is a movie. Feed the network the last few frames, ask it for the next ones. Trained on years of archives, it learns growth, decay and initiation — everything extrapolation can't do — with no physics equations involved.</p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>Input → output:</b> the last ~4–6 radar frames (plus satellite, orography, NWP if you have them) in; the frames for +10…+120 min out.</li>
+        <li><b>Training:</b> decades of radar archives sliced into millions of "past → future" pairs. The network <b>recognizes a situation and replays what historically followed it</b>.</li>
+        <li><b>That's how it learns initiation:</b> it has seen thousands of storms born out of clear air in this synoptic setup — extrapolation has seen only the current frame.</li>
+        <li><b>Architectures came and went</b> — ConvLSTM (2015) → U-Nets → transformers → MetNet in production at Google — but the framing stayed: video in, video out. What matters most is the <b>loss function</b> — the next slide.</li>
+        <li><b>Reality check (Yandex):</b> their first neural net beat a heavily-tuned optical flow by <b>+7.6% F1</b> over 2 h. <span class="cite">Habr 2020</span></li>
+      </ul>
+    </div>
+    <div class="viz">
+      <div class="viz-title">One network, one mapping: past frames in → future frames out</div>
+      <div class="imgwrap" style="height:clamp(230px,32vh,400px)"><img src="assets/nn-principle-scheme.jpg" alt="Neural network principle: stacked input feature frames plus static conditions feed a network that outputs future frames"></div>
+      <div class="panelcap">Stacked input frames (t−n…t0) + static conditions → network → the next frames. For nowcasting the "features" are radar &amp; satellite fields. · Session 3 deck</div>
+      <div><div class="imgwrap half" style="height:clamp(150px,20vh,240px);margin-top:10px"><img src="assets/habr/y2020-iou-vs-forecast-horizon.png" alt="IoU vs forecast horizon, optical flow vs PredRNN++"></div>
+      <div class="panelcap">The evidence: optical flow wins the first frame, the network wins the rest (IoU vs lead time) · Yandex, Habr 2020</div></div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s9']=function(){};</script>
+
+<!-- ===== SLIDE 10 · 09 THE CRUX ===== -->
+<section class="slide" id="s10">
+  <div class="kicker">12 · The crux</div>
+  <h2>The blurring problem</h2>
+  <p class="lede">Train a network on pixel-wise MSE and the safest prediction is the <em>average</em> of all plausible futures — a blur. It's what the loss rewards, not a tuning bug — and it erases exactly the heavy rain you care about.</p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>MSE → conditional mean</b> → smooth fields at long lead times.</li>
+        <li><b>Peak rain rates collapse;</b> small-scale structure vanishes.</li>
+        <li>Deterministic DL beats extrapolation on average scores <b>while failing on extremes</b>.</li>
+      </ul>
+      <p class="takeaway">Comment: drag the lead time — only the middle panel blurs. The observation stays sharp; a generative sample stays sharp too.</p>
+      <div class="imgwrap" style="height:clamp(170px,24vh,280px);margin-top:10px"><img src="assets/dgmr-uk-case.gif" alt="DGMR vs UNet vs radar truth, UK case, animated"></div>
+      <div class="panelcap">The real thing, animated: radar truth vs DGMR vs blurry UNet · DeepMind blog</div>
+    </div>
+    <div class="viz">
+      <div class="viz-title">Same event, three forecasts (synthetic)</div>
+      <div class="controls">
+        <div class="ctrl"><label>Lead time</label><input type="range" id="s10lead" min="0" max="90" step="5" value="45"><span class="val" id="s10leadv">+45 min</span></div>
+      </div>
+      <div class="trio">
+        <div><div class="fieldwrap"><canvas id="s10obs"></canvas></div><div class="panelcap">Observation</div></div>
+        <div><div class="fieldwrap"><canvas id="s10det"></canvas></div><div class="panelcap">Deterministic DL (MSE-trained)</div></div>
+        <div><div class="fieldwrap"><canvas id="s10gen"></canvas></div><div class="panelcap">Generative sample</div></div>
+      </div>
+      <div class="stat-row" id="s10stats"></div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s10']=function(){
+  const nx=130,ny=130;
+  const dx=0.5,dy=-0.2,TMAX=90;
+  /* generate the fields on a wider canvas and slide a viewing window across it —
+     no wrap, no seams: new weather enters the frame naturally */
+  const SX=Math.ceil(dx*TMAX),SY=Math.ceil(-dy*TMAX);
+  const W=nx+SX,H=ny+SY;
+  const fx=v=>(SX+v*nx)/W,fy=v=>(v*ny)/H,fr=r=>r*nx/W; /* view coords -> wide-grid fractions */
+  let truth=rainField(71,W,H,{scale:2.6*W/nx});
+  addBlob(truth,W,H,fx(0.3),fy(0.4),fr(0.07),1.0);addBlob(truth,W,H,fx(0.65),fy(0.6),fr(0.06),0.95);
+  let genBase=rainField(72,W,H,{scale:2.6*W/nx});
+  addBlob(genBase,W,H,fx(0.34),fy(0.37),fr(0.07),1.0);addBlob(genBase,W,H,fx(0.615),fy(0.64),fr(0.06),0.95);
+  function advect(g,t){ /* slide the window: origin (SX,0) at t=0, moving with the flow */
+    const out=new Float32Array(nx*ny);
+    for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)
+      out[j*nx+i]=sampleBilinear(g,W,H,i+SX-dx*t,j-dy*t);
+    return out;}
+  function maxOf(arr){let m=0;for(let i=0;i<arr.length;i++)if(arr[i]>m)m=arr[i];return m;}
+  const cvObs=document.getElementById('s10obs'),cvDet=document.getElementById('s10det'),cvGen=document.getElementById('s10gen');
+  const lead=document.getElementById('s10lead'),leadv=document.getElementById('s10leadv'),stats=document.getElementById('s10stats');
+  let ctxObs,ctxDet,ctxGen;
+  function size(){ctxObs=sizeCanvas(cvObs);ctxDet=sizeCanvas(cvDet);ctxGen=sizeCanvas(cvGen);}
+  function draw(){
+    const t=+lead.value;leadv.textContent='+'+t+' min';
+    const obsF=advect(truth,t);
+    const rad=t/90*10,damp=1-0.45*t/90;
+    const blurred=blurGrid(obsF,nx,ny,rad);
+    const detF=new Float32Array(nx*ny);for(let k=0;k<detF.length;k++)detF[k]=blurred[k]*damp;
+    const genF=advect(genBase,t);
+    drawField(ctxObs,obsF,nx,ny,0,0,cvObs.clientWidth,cvObs.clientHeight,{bg:'#FBFAF7'});
+    drawField(ctxDet,detF,nx,ny,0,0,cvDet.clientWidth,cvDet.clientHeight,{bg:'#FBFAF7'});
+    drawField(ctxGen,genF,nx,ny,0,0,cvGen.clientWidth,cvGen.clientHeight,{bg:'#FBFAF7'});
+    const op=maxOf(obsF)*40,dp=maxOf(detF)*40,gp=maxOf(genF)*40;
+    stats.innerHTML='<span class="pill">obs peak <b>'+op.toFixed(1)+' mm/h</b></span>'+
+      '<span class="pill bad">deterministic peak <b>'+dp.toFixed(1)+'</b></span>'+
+      '<span class="pill good">generative peak <b>'+gp.toFixed(1)+'</b></span>';
+  }
+  size();draw();
+  lead.addEventListener('input',()=>{draw();});
+  addEventListener('resize',()=>{size();draw();});
+};</script>
+
+<!-- ===== SLIDE 11 · 10 GENERATIVE ===== -->
+<section class="slide" id="s11">
+  <div class="kicker">13 · Generative</div>
+  <h2>Model the distribution, not the mean</h2>
+  <p class="lede">The fix for blurring: stop asking the network for <em>the</em> future — there are many plausible ones. A generative model draws <b>samples</b>: each one sharp, each one a possible movie ending. You choose how to use the set.</p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>Deterministic net = one answer</b> — the average of futures, i.e. the previous slide's blur.</li>
+        <li><b>Generative net = many answers.</b> Each sample sharp and plausible; they <b>disagree where the future is uncertain</b>.</li>
+        <li><b>You aggregate, not the loss:</b> mean of samples = the same blur (tab 2); exceedance odds (tab 3) keep the storm.</li>
+        <li><b>DGMR</b> (GAN, 2021): ranked <b>#1 in 89%</b> of cases by a panel of 56 Met Office meteorologists (vs pySTEPS &amp; U-Net). <b>Diffusion</b> (PreDiff, LDCast) — same idea, better-calibrated uncertainty. <span class="cite">Ravuri et al., Nature 2021</span></li>
+      </ul>
+      <p class="takeaway">Comment: walk the tabs left to right — the blur is what averaging does, not what the network must output.</p>
+      <div class="imgwrap" style="height:clamp(120px,17vh,200px);margin-top:10px"><img src="assets/dgmr-pipeline.gif" alt="DGMR pipeline: radar in, probabilistic nowcast out"></div>
+      <div class="panelcap">DGMR: 20 min of radar in → 90 min of sharp probabilistic rain out · DeepMind blog</div>
+    </div>
+    <div class="viz">
+      <div class="viz-title">Same forecast, three ways to read the samples (synthetic)</div>
+      <div class="controls">
+        <div class="tabs" style="margin-bottom:0">
+          <button class="ghost on" id="s11tabS">1 · Samples</button>
+          <button class="ghost" id="s11tabM">2 · Their mean</button>
+          <button class="ghost" id="s11tabP">3 · P(rain)</button>
+        </div>
+        <div class="ctrl"><label>Members</label><input type="range" id="s11n" min="2" max="16" step="1" value="8"><span class="val" id="s11nv">8</span></div>
+      </div>
+      <div class="fieldwrap"><canvas id="s11field"></canvas></div>
+      <div class="stat-row" id="s11stats"></div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s11']=function(){
+  const nx=110,ny=110,NMAX=16;
+  const cv=document.getElementById('s11field'),nSl=document.getElementById('s11n'),nv=document.getElementById('s11nv'),
+        stats=document.getElementById('s11stats');
+  const tabS=document.getElementById('s11tabS'),tabM=document.getElementById('s11tabM'),tabP=document.getElementById('s11tabP');
+  let mode='samples';
+  const members=[];
+  for(let i=1;i<=NMAX;i++){
+    const g=rainField(80+i,nx,ny,{scale:2.7,thresh:.55});
+    const r=seededRand(900+i);
+    addBlob(g,nx,ny,0.5+(r()*2-1)*0.14,0.5+(r()*2-1)*0.14,0.09,0.9);
+    members.push(g);
+  }
+  function probRGBA(v){
+    if(v<=0.02)return[0,0,0,0];
+    const stops=[[0.02,120,203,191,40],[0.3,120,203,191,140],[0.55,29,158,117,210],[0.8,232,118,58,235],[1.0,180,60,20,255]];
+    let a=stops[0],b=stops[stops.length-1];
+    for(let k=0;k<stops.length-1;k++)if(v>=stops[k][0]&&v<=stops[k+1][0]){a=stops[k];b=stops[k+1];break;}
+    const t=(v-a[0])/((b[0]-a[0])||1);
+    return[Math.round(a[1]+(b[1]-a[1])*t),Math.round(a[2]+(b[2]-a[2])*t),Math.round(a[3]+(b[3]-a[3])*t),Math.round(a[4]+(b[4]-a[4])*t)];
+  }
+  function probGrid(n){
+    const P=new Float32Array(nx*ny);
+    for(let k=0;k<nx*ny;k++){let c=0;for(let i=0;i<n;i++)if(members[i][k]>0.3)c++;P[k]=c/n;}
+    return P;
+  }
+  function meanGrid(n){
+    const M=new Float32Array(nx*ny);
+    for(let k=0;k<nx*ny;k++){let s=0;for(let i=0;i<n;i++)s+=members[i][k];M[k]=s/n;}
+    return M;
+  }
+  function maxOf(g){let m=0;for(let k=0;k<g.length;k++)if(g[k]>m)m=g[k];return m;}
+  let ctx;
+  function size(){ctx=sizeCanvas(cv);}
+  function draw(){
+    const n=+nSl.value;nv.textContent=n;
+    const w=cv.clientWidth,h=cv.clientHeight;
+    ctx.clearRect(0,0,w,h);ctx.fillStyle='#FBFAF7';ctx.fillRect(0,0,w,h);
+    const peak1=maxOf(members[0])*40;
+    if(mode==='prob'){
+      const P=probGrid(n);
+      drawField(ctx,P,nx,ny,0,0,w,h,{colormap:probRGBA});
+      const bw=140,bh=10,bx=w-bw-14,by=h-26;
+      for(let i=0;i<bw;i++){const c=probRGBA(i/bw);ctx.fillStyle='rgba('+c[0]+','+c[1]+','+c[2]+','+(c[3]/255).toFixed(2)+')';ctx.fillRect(bx+i,by,1,bh);}
+      ctx.strokeStyle='#ccc';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);
+      ctx.fillStyle='#999';ctx.font='9px sans-serif';ctx.textAlign='center';
+      ctx.fillText('0',bx,by+bh+10);ctx.fillText('50%',bx+bw/2,by+bh+10);ctx.fillText('100%',bx+bw,by+bh+10);
+      ctx.textAlign='left';
+      stats.innerHTML='<span class="pill good">odds of rain — heavy rain risk <b>survives</b></span>'+
+        '<span class="pill">this is the product you ship</span>';
+    }else if(mode==='mean'){
+      const M=meanGrid(n);
+      drawField(ctx,M,nx,ny,0,0,w,h,{colormap:rainRGBA});
+      const pm=maxOf(M)*40;
+      stats.innerHTML='<span class="pill bad">mean of '+n+' sharp samples → peak <b>'+pm.toFixed(0)+' mm/h</b> (was '+peak1.toFixed(0)+')</span>'+
+        '<span class="pill bad">this is exactly what an MSE-trained net outputs</span>';
+    }else{
+      const cols=Math.ceil(Math.sqrt(n)),rows=Math.ceil(n/cols),gap=4;
+      const tw=(w-gap*(cols-1))/cols,th=(h-gap*(rows-1))/rows;
+      for(let i=0;i<n;i++){
+        const cx2=(i%cols)*(tw+gap),cy2=Math.floor(i/cols)*(th+gap);
+        drawField(ctx,members[i],nx,ny,cx2,cy2,tw,th,{bg:'rgba(0,0,0,0.03)'});
+        ctx.fillStyle='#666';ctx.font='10px sans-serif';ctx.textAlign='left';
+        ctx.fillText('sample '+(i+1),cx2+4,cy2+12);
+      }
+      stats.innerHTML='<span class="pill good">each sample <b>sharp</b>, peak ≈ '+peak1.toFixed(0)+' mm/h</span>'+
+        '<span class="pill">they disagree where the future is <b>uncertain</b></span>';
+    }
+  }
+  function setMode(m){
+    mode=m;
+    tabS.classList.toggle('on',m==='samples');
+    tabM.classList.toggle('on',m==='mean');
+    tabP.classList.toggle('on',m==='prob');
+    draw();
+  }
+  tabS.addEventListener('click',()=>setMode('samples'));
+  tabM.addEventListener('click',()=>setMode('mean'));
+  tabP.addEventListener('click',()=>setMode('prob'));
+  size();draw();
+  nSl.addEventListener('input',()=>{draw();});
+  addEventListener('resize',()=>{size();draw();});
+};</script>
+
+<!-- ===== SLIDE 11b · 12 IN PRODUCTION ===== -->
+<section class="slide" id="s11b">
+  <div class="kicker">14 · In production</div>
+  <h2>What a production nowcast looks like</h2>
+  <p class="lede">Yandex Meteum: one neural net predicts the whole 2-hour rain movie in 10-minute steps — and a million daily user reports keep the map honest in real time. <span class="cite">Habr 2020–2025</span></p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>The pipeline, not the architecture, is the product:</b> stitch radars + satellite into one map (slide 06), let the network roll it 2 h forward, correct it live, ship it every 10 minutes.</li>
+        <li><b>Users are the densest sensor:</b> 1M+ "is it raining?" taps a day, vs ~8k weather-station obs — used both as a <em>training target</em> and for live correction: up to <b>+20%</b> on sudden rain. <span class="cite">Habr 2021</span></li>
+        <li><b>Latency is a feature:</b> the whole loop — ingest, stitch, forecast, publish — must fit inside one radar update (~10 min), or the nowcast is stale on arrival.</li>
+      </ul>
+      <p class="takeaway">Comment: right — real reports flowing in across a country (animated). Density follows people, not weather: cities shout, forests are silent — which is exactly why it complements radar.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">The production loop — from sensors to the map on your phone</div>
+      <div class="pipe">
+        <div class="stage">
+          <div class="pbox"><b>Radars</b><span>sharp · every 10 min</span></div>
+          <div class="pbox"><b>Satellites</b><span>everywhere · indirect</span></div>
+          <div class="pbox"><b>User reports</b><span>1M+/day · "is it raining?"</span></div>
+        </div>
+        <div class="parr">→</div>
+        <div class="stage"><div class="pbox" style="flex:1;display:flex;flex-direction:column;justify-content:center"><b>One seamless map</b><span>mosaic + neural stitching</span></div></div>
+        <div class="parr">→</div>
+        <div class="stage"><div class="pbox hl" style="flex:1;display:flex;flex-direction:column;justify-content:center"><b>Neural net</b><span>next 2 h · 10-min steps</span></div></div>
+        <div class="parr">→</div>
+        <div class="stage">
+          <div class="pbox out" style="flex:1;display:flex;flex-direction:column;justify-content:center"><b>Live correction</b><span>fresh reports nudge the map</span></div>
+          <div class="pbox out"><b>App / API</b><span>"rain in 20 min"</span></div>
+        </div>
+      </div>
+      <div class="duo" style="margin-top:12px">
+        <div><div class="imgwrap" style="height:clamp(150px,22vh,260px)"><img src="assets/habr/y2021-user-reports-density-animation.gif" alt="Animated density of user rain reports across the country"></div><div class="panelcap">The crowd as a sensor network: user reports streaming in · Yandex, Habr 2021</div></div>
+        <div><div class="imgwrap" style="height:clamp(150px,22vh,260px)"><img src="assets/habr/y2021-ekaterinburg-user-reports-comparison.png" alt="Nowcast without vs with user reports, Ekaterinburg storm"></div><div class="panelcap">Without vs with user reports — the storm is caught only with them (Ekaterinburg) · Habr 2021</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 12 · 13 EXTREMES ===== -->
+<section class="slide" id="s12">
+  <div class="kicker">15 · Extremes</div>
+  <h2>Extreme events — the acid test</h2>
+  <p class="lede">Rain rates are heavy-tailed: most wet pixels are drizzle, all the damage sits in the top percent. Any model trained on average error amputates exactly that tail. <span class="cite">Zhang et al., Nature 2023</span></p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>The tail is the product.</b> ≥30 mm/h pixels are rare, but they carry a disproportionate share of accumulated rain — and nearly all warnings.</li>
+        <li><b>Averaging amputates the tail:</b> a blurred or MSE-trained forecast keeps the drizzle statistics and loses the extremes → systematic under-warning.</li>
+        <li><b>NowcastNet</b> (physics evolution + generative decoder) was preferred by forecasters in <b>71%</b> of extreme cases; operations still accept a deliberate wet bias.</li>
+      </ul>
+      <div class="viz-title" style="margin-top:10px">100 rainy pixels — what radar sees vs what a blurred forecast keeps</div>
+      <div class="fieldwrap half" style="height:clamp(165px,22vh,250px)"><canvas id="s12dist"></canvas></div>
+      <div class="stat-row" id="s12stats"></div>
+    </div>
+    <div class="viz">
+      <div class="viz-title">A real extreme event — 3-h nowcasts vs what happened</div>
+      <div><div class="imgwrap" style="height:clamp(300px,48vh,560px)"><img src="assets/nowcastnet-case-us.png" alt="NowcastNet US extreme case, 11 Dec 2021"></div>
+        <div class="panelcap">Squall line, central US, 11 Dec 2021 — truth vs NowcastNet vs DGMR vs PySTEPS: only the physics+generative model keeps the sharp line · Zhang et al., Nature 2023 (CC-BY)</div></div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s12']=function(){
+  const cv=document.getElementById('s12dist'),statsEl=document.getElementById('s12stats');
+  /* waffle: 100 wet pixels, colored by intensity class */
+  const classes=[
+    {n:'drizzle <1',c:'#CBE9E4'},
+    {n:'light 1–5',c:'#78CBBF'},
+    {n:'moderate 5–15',c:'#378ADD'},
+    {n:'heavy 15–30',c:'#E8763A'},
+    {n:'violent 30+',c:'#962819'}
+  ];
+  const obsCounts=[46,32,15,6,1],blurCounts=[38,44,17,1,0];
+  function cells(counts){const a=[];counts.forEach((c,ci)=>{for(let i=0;i<c;i++)a.push(ci);});return a;}
+  const rnd=seededRand(777);
+  /* deterministic shuffle so the grids look organic but stable */
+  function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+  const obsCells=shuffle(cells(obsCounts)),blurCells=shuffle(cells(blurCounts));
+  /* keep the single violent pixel in a fixed, findable spot */
+  const vIdx=obsCells.indexOf(4);const swapTo=23;
+  [obsCells[vIdx],obsCells[swapTo]]=[obsCells[swapTo],obsCells[vIdx]];
+  function drawWaffle(ctx,cellsArr,x0,y0,size,title,highlightViolent){
+    const n=10,gap=2,s=(size-gap*(n-1))/n;
+    ctx.fillStyle='#666';ctx.font='600 12px Space Grotesk,sans-serif';ctx.textAlign='left';
+    ctx.fillText(title,x0,y0-8);
+    for(let i=0;i<100;i++){
+      const cx=x0+(i%n)*(s+gap),cy=y0+Math.floor(i/n)*(s+gap);
+      ctx.fillStyle=classes[cellsArr[i]].c;
+      ctx.beginPath();ctx.roundRect(cx,cy,s,s,2);ctx.fill();
+    }
+    if(highlightViolent){
+      const i=cellsArr.indexOf(4);
+      if(i>=0){
+        const cx=x0+(i%n)*(s+gap)+s/2,cy=y0+Math.floor(i/n)*(s+gap)+s/2;
+        ctx.strokeStyle='#962819';ctx.lineWidth=2;
+        ctx.beginPath();ctx.arc(cx,cy,s*0.95,0,2*Math.PI);ctx.stroke();
+        ctx.font='600 11px Space Grotesk,sans-serif';
+        ctx.strokeStyle='rgba(251,250,247,.9)';ctx.lineWidth=3;ctx.lineJoin='round';
+        ctx.strokeText('the pixel that floods a street',cx+s+6,cy+4);
+        ctx.fillStyle='#962819';
+        ctx.fillText('the pixel that floods a street',cx+s+6,cy+4);
+      }else{
+        ctx.font='600 11px Space Grotesk,sans-serif';
+        ctx.strokeStyle='rgba(251,250,247,.9)';ctx.lineWidth=3;ctx.lineJoin='round';
+        ctx.strokeText('30+ mm/h: gone',x0+size*0.22,y0+size+16);
+        ctx.fillStyle='#962819';
+        ctx.fillText('30+ mm/h: gone',x0+size*0.22,y0+size+16);
+      }
+    }
+  }
+  function draw(){
+    const ctx=sizeCanvas(cv),rc=cv.getBoundingClientRect(),w=rc.width,h=rc.height;
+    ctx.clearRect(0,0,w,h);ctx.fillStyle='#FBFAF7';ctx.fillRect(0,0,w,h);
+    const legendH=26,titleH=24;
+    const size=Math.min((w-70)/2,h-titleH-legendH-14);
+    const x1=(w/2-size)/2+6,x2=w/2+(w/2-size)/2+6,y0=titleH+6;
+    drawWaffle(ctx,obsCells,x1,y0,size,'Radar reality',true);
+    drawWaffle(ctx,blurCells,x2,y0,size,'Blurred forecast',true);
+    /* legend */
+    let lx=8;const ly=h-10;
+    ctx.font='10px Space Grotesk,sans-serif';ctx.textAlign='left';
+    classes.forEach(c=>{
+      ctx.fillStyle=c.c;ctx.fillRect(lx,ly-9,10,10);
+      ctx.fillStyle='#777';ctx.fillText(c.n,lx+13,ly);
+      lx+=13+ctx.measureText(c.n).width+14;
+    });
+  }
+  draw();
+  addEventListener('resize',draw);
+  statsEl.innerHTML='<span class="pill">the <b>1%</b> of violent pixels carries the damage — and all warnings</span>'
+    +'<span class="pill bad">blurred: it becomes "moderate" — <b>no warning fires</b></span>';
+};</script>
+
+<!-- ===== SLIDE 13 · 12 VERIFICATION ===== -->
+<section class="slide" id="s13">
+  <div class="kicker">16 · Verification</div>
+  <h2>Grid-point scores reward the blur</h2>
+  <p class="lede">Shift a perfect forecast 20 km and pixel scores punish it twice — a miss where the rain was, a false alarm where it wasn't. That double penalty is why blurry forecasts win CSI, and why we verify at neighborhood scale. <span class="cite">Roberts &amp; Lean, MWR 2008</span></p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>Hits &amp; misses (POD, FAR, CSI/IoU):</b> count pixels where forecast and truth agree — brutal on any displacement. CSI is the same formula CV people call <b>IoU</b> — overlap over union (that's the metric in the Yandex plots).</li>
+        <li><b>Neighborhood (FSS):</b> compare rain <em>fractions</em> in n×n windows — forgives small shifts, so sharp-but-offset forecasts get credit.</li>
+        <li><b>Probabilistic (CRPS):</b> score the whole predicted distribution against what fell — the natural score for ensembles and generative models.</li>
+      </ul>
+      <p class="takeaway">Comment: walk the three tabs; each has its own toy. The ƒ button shows the formula behind the active one.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">One toy per metric — drag the forecast blob in tabs 1 &amp; 2</div>
+      <div class="controls">
+        <div class="tabs" style="margin-bottom:0">
+          <button class="ghost on" id="s13tabC">1 · Hits &amp; misses</button>
+          <button class="ghost" id="s13tabF">2 · FSS</button>
+          <button class="ghost" id="s13tabP">3 · CRPS</button>
+        </div>
+        <div class="ctrl" id="s13nwrap"><label>FSS neighborhood</label><input type="range" id="s13n" min="1" max="24" step="1" value="6"><span class="val" id="s13nv">6 px</span></div>
+        <button class="ghost" id="s13formula" title="Show the formula">ƒ formula</button>
+      </div>
+      <div class="fieldwrap"><canvas id="s13field" style="cursor:grab"></canvas></div>
+      <div class="stat-row" id="s13stats"></div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s13']=function(){
+  const nx=120,ny=80,cvE=document.getElementById('s13field'),nEl=document.getElementById('s13n'),nvEl=document.getElementById('s13nv'),statsEl=document.getElementById('s13stats');
+  const tabC=document.getElementById('s13tabC'),tabF=document.getElementById('s13tabF'),tabP=document.getElementById('s13tabP');
+  const nwrap=document.getElementById('s13nwrap'),fBtn=document.getElementById('s13formula');
+  let ctx=sizeCanvas(cvE);
+  let mode='cont';
+  const truth=new Float32Array(nx*ny);addBlob(truth,nx,ny,0.38,0.5,0.09,1);
+  const truthBin=new Float32Array(nx*ny);for(let k=0;k<nx*ny;k++)truthBin[k]=truth[k]>0.4?1:0;
+  let fx=0.55,fy=0.5,dragging=false;
+  function xy(e){const r=cvE.getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height];}
+  function fields(){
+    const fBlob=new Float32Array(nx*ny);addBlob(fBlob,nx,ny,fx,fy,0.09,1);
+    const fBin=new Float32Array(nx*ny);for(let k=0;k<nx*ny;k++)fBin[k]=fBlob[k]>0.4?1:0;
+    let hits=0,misses=0,falseA=0;
+    for(let k=0;k<nx*ny;k++){const t=truthBin[k],f=fBin[k];if(t&&f)hits++;else if(t&&!f)misses++;else if(!t&&f)falseA++;}
+    return{fBin,hits,misses,falseA};
+  }
+  /* --- tab 1: contingency table, regions colored --- */
+  function renderCont(){
+    const r=cvE.getBoundingClientRect(),w=r.width,h=r.height;
+    ctx.clearRect(0,0,w,h);ctx.fillStyle='#FBFAF7';ctx.fillRect(0,0,w,h);
+    const{fBin,hits,misses,falseA}=fields();
+    const seg=new Float32Array(nx*ny); /* 0 none, .33 miss, .66 FA, 1 hit */
+    for(let k=0;k<nx*ny;k++){const t=truthBin[k],f=fBin[k];seg[k]=t&&f?1:(t?0.33:(f?0.66:0));}
+    const segMap=v=>v>0.9?[29,158,117,235]:v>0.5?[232,118,58,215]:v>0.2?[120,203,191,180]:[0,0,0,0];
+    drawField(ctx,seg,nx,ny,0,0,w,h,{colormap:segMap,smooth:false});
+    ctx.font='600 12px Space Grotesk,sans-serif';ctx.textAlign='left';
+    ctx.fillStyle='#3d8e77';ctx.fillText('misses — rain you didn\'t warn about',10,20);
+    ctx.fillStyle='#1D9E75';ctx.fillText('hits',10,38);
+    ctx.fillStyle='#b8501f';ctx.fillText('false alarms — cried wolf',10,56);
+    ctx.fillStyle='#999';ctx.font='11px Space Grotesk,sans-serif';
+    ctx.fillText('drag the forecast blob',w-150,h-12);
+    const pod=hits+misses>0?hits/(hits+misses):0;
+    const far=hits+falseA>0?falseA/(hits+falseA):0;
+    const csi=hits+misses+falseA>0?hits/(hits+misses+falseA):0;
+    statsEl.innerHTML=
+      '<span class="pill">POD <b>'+pod.toFixed(2)+'</b> — share of rain caught</span>'+
+      '<span class="pill">FAR <b>'+far.toFixed(2)+'</b> — share of warnings wasted</span>'+
+      '<span class="pill '+(csi>=0.5?'good':csi<0.2?'bad':'')+'">CSI = IoU <b>'+csi.toFixed(2)+'</b> — overlap / union</span>';
+  }
+  /* --- tab 2: FSS vs CSI double penalty --- */
+  const tealMap=v=>[120,203,191,Math.round(Math.min(1,v)*0.55*255)];
+  const coralMap=v=>[232,118,58,Math.round(Math.min(1,v)*0.55*255)];
+  function renderFss(){
+    const r=cvE.getBoundingClientRect(),w=r.width,h=r.height;
+    ctx.clearRect(0,0,w,h);ctx.fillStyle='#FBFAF7';ctx.fillRect(0,0,w,h);
+    const{fBin,hits,misses,falseA}=fields();
+    const fBlob=new Float32Array(nx*ny);addBlob(fBlob,nx,ny,fx,fy,0.09,1);
+    drawField(ctx,truth,nx,ny,0,0,w,h,{colormap:tealMap});
+    drawField(ctx,fBlob,nx,ny,0,0,w,h,{colormap:coralMap});
+    ctx.font='600 12px Space Grotesk,sans-serif';ctx.textAlign='center';
+    ctx.fillStyle=C.tealD;ctx.fillText('truth',0.38*w,0.5*h+4);
+    ctx.fillStyle='#b8501f';ctx.fillText('forecast (drag me)',fx*w,fy*h+4);
+    ctx.textAlign='left';
+    const n=parseInt(nEl.value,10),cw=w/nx,chh=h/ny;
+    ctx.strokeStyle='rgba(72,72,74,.5)';ctx.lineWidth=1;
+    const nw=n*cw,nh=n*chh;ctx.strokeRect(w-nw-8,h-nh-8,nw,nh);
+    ctx.fillStyle='#999';ctx.font='10px Space Grotesk,sans-serif';ctx.fillText('window',w-nw-8,h-nh-14);
+    const denom=hits+misses+falseA,csi=denom>0?hits/denom:0;
+    const Pf=blurGrid(fBin,nx,ny,n),Po=blurGrid(truthBin,nx,ny,n);
+    let num=0,den=0;for(let k=0;k<nx*ny;k++){num+=(Pf[k]-Po[k])*(Pf[k]-Po[k]);den+=Pf[k]*Pf[k]+Po[k]*Po[k];}
+    const fss=den>0?1-num/den:1;
+    const dxk=(fx-0.38)*nx,dyk=(fy-0.5)*ny,shiftKm=Math.sqrt(dxk*dxk+dyk*dyk);
+    statsEl.innerHTML=
+      '<span class="pill">shift <b>'+shiftKm.toFixed(1)+' km</b></span>'+
+      '<span class="pill '+(csi<0.2?'bad':'')+'">CSI <b>'+csi.toFixed(2)+'</b> — double penalty</span>'+
+      '<span class="pill good">FSS('+n+') <b>'+fss.toFixed(2)+'</b> — forgives the shift</span>';
+  }
+  /* --- tab 3: CRPS --- */
+  function renderCrps(){
+    const r=cvE.getBoundingClientRect(),w=r.width,h=r.height;
+    ctx.clearRect(0,0,w,h);ctx.fillStyle='#FBFAF7';ctx.fillRect(0,0,w,h);
+    const mL=46,mR=24,mT=30,mB=44;
+    const pw=w-mL-mR,ph=h-mT-mB;
+    const X=v=>mL+v/30*pw,Y=p=>mT+ph*(1-p);
+    /* forecast CDF: lognormal-ish sigmoid centred at 8 mm/h; obs at 14 mm/h */
+    const cdf=v=>1/(1+Math.exp(-(v-8)/2.4));
+    const obs=14;
+    /* shaded CRPS area between CDF and obs step */
+    ctx.beginPath();
+    for(let v=0;v<=30;v+=0.25){const y1=Y(cdf(v)),y2=Y(v<obs?0:1);
+      ctx.rect(X(v),Math.min(y1,y2),X(0.25)-X(0),Math.abs(y2-y1));}
+    ctx.fillStyle='rgba(232,118,58,0.16)';ctx.fill();
+    /* CDF curve */
+    ctx.strokeStyle=C.blue;ctx.lineWidth=2.5;ctx.beginPath();
+    for(let v=0;v<=30;v+=0.25){const x=X(v),y=Y(cdf(v));v===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+    ctx.stroke();
+    /* obs step */
+    ctx.strokeStyle=C.ink;ctx.lineWidth=2;ctx.setLineDash([6,4]);
+    ctx.beginPath();ctx.moveTo(X(0),Y(0));ctx.lineTo(X(obs),Y(0));ctx.lineTo(X(obs),Y(1));ctx.lineTo(X(30),Y(1));ctx.stroke();
+    ctx.setLineDash([]);
+    /* ensemble member ticks along the x axis */
+    const members=[4.2,5.5,6.3,7.1,7.8,8.6,9.5,10.6,12.2,15.0];
+    ctx.strokeStyle=C.tealD;ctx.lineWidth=2;
+    members.forEach(m=>{ctx.beginPath();ctx.moveTo(X(m),Y(0)+14);ctx.lineTo(X(m),Y(0)+4);ctx.stroke();});
+    ctx.fillStyle=C.tealD;ctx.font='11px Space Grotesk,sans-serif';ctx.textAlign='left';
+    ctx.fillText('ensemble members / generative samples',X(1),Y(0)+30);
+    /* labels */
+    ctx.fillStyle=C.blue;ctx.font='600 12px Space Grotesk,sans-serif';
+    ctx.fillText('forecast CDF',X(2.4),Y(cdf(4.5)));
+    ctx.fillStyle=C.ink;ctx.fillText('what actually fell: '+obs+' mm/h',X(obs)+8,Y(0.5));
+    ctx.fillStyle='#b8501f';ctx.fillText('CRPS = orange area — smaller is better',X(6),mT+14);
+    /* axes */
+    ctx.strokeStyle='rgba(0,0,0,.15)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(mL,mT);ctx.lineTo(mL,Y(0));ctx.lineTo(X(30),Y(0));ctx.stroke();
+    ctx.fillStyle='#999';ctx.font='10px Space Grotesk,sans-serif';ctx.textAlign='center';
+    for(let v=0;v<=30;v+=10)ctx.fillText(v,X(v),Y(0)+14);
+    ctx.save();ctx.translate(14,(mT+Y(0))/2);ctx.rotate(-Math.PI/2);ctx.fillText('P(rain ≤ x)',0,0);ctx.restore();
+    ctx.fillText('rain (mm/h)',X(15),h-4);
+    ctx.textAlign='left';
+    statsEl.innerHTML=
+      '<span class="pill">sharp <b>and</b> well-centred distribution → small area → good CRPS</span>'+
+      '<span class="pill">one deterministic number = a vertical CDF — CRPS then equals plain error</span>';
+  }
+  const FORMULAS={
+    cont:'<h3>Contingency scores</h3>'+
+      '<div class="fdesc">Count every pixel above a rain threshold: hits <i>H</i> (both rain), misses <i>M</i> (truth only), false alarms <i>F</i> (forecast only).</div>'+
+      '<div class="formula">POD = H / (H + M)</div><div class="fdesc">Probability of detection — how much of the rain you caught.</div>'+
+      '<div class="formula">FAR = F / (H + F)</div><div class="fdesc">False alarm ratio — how many warnings were wasted.</div>'+
+      '<div class="formula">CSI = IoU = H / (H + M + F)</div><div class="fdesc">Critical success index — both penalties at once. A 20-km shift counts a miss <b>and</b> a false alarm: the double penalty. Geometrically it is <b>intersection over union</b>: H is where the two rain masks overlap, H+M+F is their union — so meteorology\'s CSI and computer vision\'s IoU are the same score under two names.</div>',
+    fss:'<h3>Fractions Skill Score</h3>'+
+      '<div class="formula">FSS = 1 − Σ(P<sub>f</sub> − P<sub>o</sub>)² / [ΣP<sub>f</sub>² + ΣP<sub>o</sub>²]</div>'+
+      '<div class="fdesc">P<sub>f</sub>, P<sub>o</sub> — the <b>fraction</b> of rainy pixels in each n×n neighborhood window of forecast and observation. Compare fractions, not pixels: a small displacement inside the window costs nothing. Grow n until FSS &gt; 0.5 + f<sub>o</sub>/2 — that scale is your "believable scale". <span class="cite">Roberts &amp; Lean 2008</span></div>',
+    crps:'<h3>Continuous Ranked Probability Score</h3>'+
+      '<div class="formula">CRPS = ∫ [F(x) − 𝟙{x ≥ obs}]² dx</div>'+
+      '<div class="fdesc">F(x) — the forecast CDF (from ensemble members or generative samples); 𝟙 — the step function of what actually happened. It is the squared area between "what you said" and "what fell" — rewarding distributions that are both <b>sharp</b> and <b>well-centred</b>. For a single deterministic value it collapses to the absolute error.</div>'
+  };
+  function render(){
+    if(mode==='cont')renderCont();
+    else if(mode==='fss')renderFss();
+    else renderCrps();
+  }
+  function setMode(m){
+    mode=m;
+    tabC.classList.toggle('on',m==='cont');
+    tabF.classList.toggle('on',m==='fss');
+    tabP.classList.toggle('on',m==='crps');
+    nwrap.style.display=m==='fss'?'flex':'none';
+    cvE.style.cursor=m==='crps'?'default':'grab';
+    render();
+  }
+  tabC.addEventListener('click',()=>setMode('cont'));
+  tabF.addEventListener('click',()=>setMode('fss'));
+  tabP.addEventListener('click',()=>setMode('crps'));
+  fBtn.addEventListener('click',()=>showFormula(FORMULAS[mode]));
+  cvE.addEventListener('pointerdown',e=>{if(mode==='crps')return;dragging=true;cvE.setPointerCapture(e.pointerId);cvE.style.cursor='grabbing';const p=xy(e);fx=Math.max(0,Math.min(1,p[0]));fy=Math.max(0,Math.min(1,p[1]));render();});
+  cvE.addEventListener('pointermove',e=>{if(!dragging)return;const p=xy(e);fx=Math.max(0,Math.min(1,p[0]));fy=Math.max(0,Math.min(1,p[1]));render();});
+  cvE.addEventListener('pointerup',()=>{dragging=false;if(mode!=='crps')cvE.style.cursor='grab';});
+  cvE.addEventListener('pointercancel',()=>{dragging=false;if(mode!=='crps')cvE.style.cursor='grab';});
+  nEl.addEventListener('input',()=>{nvEl.textContent=nEl.value+' px';render();});
+  addEventListener('resize',()=>{ctx=sizeCanvas(cvE);render();});
+  setMode('cont');
+};</script>
+
+<!-- ===== SLIDE 14 · 13 STATE OF THE ART ===== -->
+<section class="slide" id="s14">
+  <div class="kicker">17 · State of the art</div>
+  <h2>2025 — a good nowcast where there is no radar</h2>
+  <p class="lede">Global MetNet: satellite-only, probabilistic, 12-hour precipitation nowcasts at ~5 km resolution, live in Google Search — built precisely for the radar-sparse regions that dominate the globe. <span class="cite">Agrawal et al., 2025</span></p>
+  <div class="cols">
+    <div class="notes">
+      <ul class="points">
+        <li><b>Inputs:</b> geostationary satellites + GPM spaceborne-radar training target + global NWP — <b>no ground radar required</b>.</li>
+        <li><b>The skill map says it all</b> (right): HRES is pale everywhere; Global MetNet lights up Africa, South America, South-East Asia — better skill there than top NWP achieves <b>in the US</b>.</li>
+        <li><b>Case study below:</b> a convective system in West Africa — the world's best physics model (HRES) has virtually no skill; the satellite-first nowcast tracks the storm for 7 hours.</li>
+        <li>The frontier isn't a better radar nowcast — it's <b>a good nowcast everywhere</b>. OpenWeather's gap exactly.</li>
+      </ul>
+      <p class="takeaway">Comment: forecasts in under a minute, ~5 km / 15 min, already serving Google Search. Click the images to zoom.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-title">From the paper: skill where there was none</div>
+      <div><div class="imgwrap" style="height:clamp(150px,20vh,240px)"><img src="assets/globalmetnet-fig1-csi-maps.png" alt="Global CSI maps: HRES vs Global MetNet at 1-hour lead time"></div>
+        <div class="panelcap">CSI at +1 h, 1 mm/h: ECMWF HRES (left) vs Global MetNet (right) — the Global South switches on · Agrawal et al. 2025, Fig. 1</div></div>
+      <div><div class="imgwrap" style="height:clamp(200px,28vh,340px);margin-top:10px"><img src="assets/globalmetnet-case-westafrica.png" alt="West Africa convective system: HRES vs Global MetNet vs IMERG over 7 hours"></div>
+        <div class="panelcap">Deep convection over West Africa, 24 Apr 2024 — HRES (left) misses the storm entirely; Global MetNet (middle) tracks what IMERG observed (right) · Agrawal et al. 2025, Fig. 9</div></div>
+      <div class="stat-row">
+        <span class="pill good">~5 km / 15 min · 12 h ahead</span>
+        <span class="pill good">forecast in <b>&lt;1 min</b></span>
+        <span class="pill">live in Google Search</span>
+      </div>
+    </div>
+  </div>
+</section>
+<script>SLIDE_INIT['s14']=function(){};</script>
+
+<!-- ===== SLIDE 15 · 14 RECAP ===== -->
+<section class="slide dark" id="s15" data-dark="1">
+  <div class="kicker">18 · Recap</div>
+  <h2>Three things to remember</h2>
+  <p class="lede">The whole talk in three ideas — each with a live reminder.</p>
+  <div class="recap">
+    <div class="rcard"><div class="num">1</div><h3>Move it, then grow it</h3><p>Extrapolation moves rain; learning the evolution — growth, decay, initiation — is the hard half.</p><div class="rspark"><canvas id="rk1"></canvas></div></div>
+    <div class="rcard"><div class="num">2</div><h3>Blurring is the enemy</h3><p>Pixel losses average the futures into a smear. Generative and physics-informed models restore the sharpness extremes demand.</p><div class="rspark"><canvas id="rk2"></canvas></div></div>
+    <div class="rcard"><div class="num">3</div><h3>Verify like a probabilist</h3><p>Neighborhood (FSS), probabilistic (CRPS), texture and human eval — grid-point scores alone reward the blur.</p><div class="rspark"><canvas id="rk3"></canvas></div></div>
+  </div>
+</section>
+<script>SLIDE_INIT['s15']=function(){
+  function hex2rgb(h){h=h.replace('#','');return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+  const teal=hex2rgb(C.teal),tealD=hex2rgb(C.tealD),coral=hex2rgb(C.coral);
+  function rgba(c,a){return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')';}
+  function drawRk1(ctx,w,h){
+    ctx.clearRect(0,0,w,h);
+    const cy=h*0.55,r=h*0.28;
+    for(let i=0;i<3;i++){
+      const cx=w*(0.18+i*0.32),a=0.3+i*0.35;
+      ctx.strokeStyle=rgba(teal,a);ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
+      if(i<2){
+        const x1=cx+r+2,x2=w*(0.18+(i+1)*0.32)-r-2;
+        ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(x1,cy);ctx.lineTo(x2,cy);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(x2-5,cy-3);ctx.lineTo(x2,cy);ctx.lineTo(x2-5,cy+3);ctx.stroke();
+      }
+    }
+  }
+  function drawRk2(ctx,w,h){
+    ctx.clearRect(0,0,w,h);
+    const base=h*0.92,top=h*0.08;
+    function gauss(x,cx,sig,amp){const d=(x-cx)/sig;return amp*Math.exp(-d*d/2);}
+    ctx.strokeStyle=rgba(teal,0.95);ctx.lineWidth=2;ctx.beginPath();
+    for(let x=0;x<=w;x+=2){const v=gauss(x,w*0.5,w*0.07,1),y=base-(base-top)*v;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+    ctx.stroke();
+    ctx.strokeStyle=rgba(coral,0.9);ctx.lineWidth=2;ctx.setLineDash([4,3]);ctx.beginPath();
+    for(let x=0;x<=w;x+=2){const v=gauss(x,w*0.5,w*0.22,0.45),y=base-(base-top)*v;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+    ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,base);ctx.lineTo(w,base);ctx.stroke();
+  }
+  function drawRk3(ctx,w,h){
+    ctx.clearRect(0,0,w,h);
+    const base=h*0.88,top=h*0.14;
+    ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,base);ctx.lineTo(w,base);ctx.stroke();
+    ctx.strokeStyle=rgba(coral,0.95);ctx.lineWidth=2;ctx.beginPath();
+    for(let i=0;i<=40;i++){const x=i/40,px=x*w,csi=Math.exp(-x*5.5),y=base-(base-top)*csi;i===0?ctx.moveTo(px,y):ctx.lineTo(px,y);}
+    ctx.stroke();
+    ctx.strokeStyle=rgba(tealD,0.95);ctx.lineWidth=2;ctx.beginPath();
+    for(let i=0;i<=40;i++){const x=i/40,px=x*w,fss=1-0.35*Math.pow(x,1.6),y=base-(base-top)*fss;i===0?ctx.moveTo(px,y):ctx.lineTo(px,y);}
+    ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.35)';ctx.font='8px sans-serif';
+    ctx.fillText('displacement →',2,h-2);
+  }
+  const specs=[['rk1',drawRk1],['rk2',drawRk2],['rk3',drawRk3]];
+  const items=specs.map(function(s){const cv=document.getElementById(s[0]);return {cv:cv,fn:s[1],ctx:sizeCanvas(cv)};});
+  function redraw(){items.forEach(function(o){const r=o.cv.getBoundingClientRect();o.fn(o.ctx,r.width,r.height);});}
+  redraw();
+  addEventListener('resize',function(){items.forEach(function(o){o.ctx=sizeCanvas(o.cv);});redraw();});
+};</script>
+
+<!-- ===== SLIDE 16 · 15 REFERENCES ===== -->
+<section class="slide" id="s16">
+  <div class="kicker">19 · References</div>
+  <h2>References &amp; further reading</h2>
+  <p class="lede">Where these ideas come from — the foundational papers and the operational systems.</p>
+  <div class="refgrid">
+    <div class="refcol"><h4>Foundational</h4>
+      <a class="ref" href="https://arxiv.org/abs/1506.04214" target="_blank" rel="noopener"><div class="t">Shi et al. (2015) — ConvLSTM</div><div class="d">Convolutional LSTM: precipitation nowcasting as sequence learning. NeurIPS.</div></a>
+      <a class="ref" href="https://www.nature.com/articles/s41586-021-03854-z" target="_blank" rel="noopener"><div class="t">Ravuri et al. (2021) — DGMR</div><div class="d">Skilful precipitation nowcasting using deep generative models of radar. Nature 597.</div></a>
+      <a class="ref" href="https://www.nature.com/articles/s41586-023-06184-4" target="_blank" rel="noopener"><div class="t">Zhang et al. (2023) — NowcastNet</div><div class="d">Skilful nowcasting of extreme precipitation with physics + generative learning. Nature 619.</div></a>
+      <a class="ref" href="https://www.nature.com/articles/s41467-022-32483-x" target="_blank" rel="noopener"><div class="t">Espeholt et al. (2022) — MetNet-2</div><div class="d">Deep learning for 12-hour precipitation forecasts. Nature Communications 13.</div></a>
+      <a class="ref" href="https://doi.org/10.1175/2007MWR2123.1" target="_blank" rel="noopener"><div class="t">Roberts &amp; Lean (2008) — FSS</div><div class="d">Scale-selective verification of rainfall accumulations. Monthly Weather Review 136.</div></a>
+    </div>
+    <div class="refcol"><h4>Operational &amp; surveys</h4>
+      <a class="ref" href="https://gmd.copernicus.org/articles/12/4185/2019/" target="_blank" rel="noopener"><div class="t">Pulkkinen et al. (2019) — PySTEPS</div><div class="d">An open-source Python library for probabilistic nowcasting. GMD 12.</div></a>
+      <a class="ref" href="https://journals.ametsoc.org/view/journals/bams/100/9/bams-d-18-0166.1.xml" target="_blank" rel="noopener"><div class="t">Saltikoff et al. (2019) — Radar networks</div><div class="d">Weather radar for climatology: networks, coverage, archives. BAMS 100.</div></a>
+      <a class="ref" href="https://research.google/blog/metnet-3-a-state-of-the-art-neural-weather-model-available-in-google-products/" target="_blank" rel="noopener"><div class="t">MetNet-3 (2023) — Google Research</div><div class="d">Neural weather model in production: 24-h precipitation at km scale.</div></a>
+      <a class="ref" href="https://arxiv.org/abs/2510.13050" target="_blank" rel="noopener"><div class="t">Agrawal et al. (2025) — Global MetNet</div><div class="d">Satellite-only global nowcasting, 12 h, live in Google Search. arXiv.</div></a>
+      <a class="ref" href="https://arxiv.org/abs/2406.04867" target="_blank" rel="noopener"><div class="t">An et al. (2024) — Survey</div><div class="d">Deep-learning precipitation nowcasting: a comprehensive review. arXiv.</div></a>
+      <a class="ref" href="https://habr.com/ru/companies/yandex/articles/504794/" target="_blank" rel="noopener"><div class="t">Yandex Weather (2020) — Habr</div><div class="d">Neural nets vs optical flow in production; radar–satellite stitching by inpainting.</div></a>
+      <a class="ref" href="https://habr.com/ru/companies/yandex/articles/565238/" target="_blank" rel="noopener"><div class="t">Yandex Meteum 2.0 (2021) — Habr</div><div class="d">1M+ daily user reports as training target and live correction of the rain map.</div></a>
+      <a class="ref" href="https://habr.com/ru/companies/yandex/articles/919492/" target="_blank" rel="noopener"><div class="t">Yandex Weather (2025) — Habr</div><div class="d">TAU nowcast architecture and lightning forecasting with contour loss.</div></a>
+    </div>
+  </div>
+  <p class="takeaway"><span class="brand">OpenWeather</span> · Precipitation Detection &amp; Nowcasting · interactive companion · mock data for illustration</p>
+</section>
+
+</div><!-- /deck -->
+
+<div id="lightbox"><img alt=""><div class="lbcap"></div></div>
+<div id="fpopup"><div class="fbox"><button class="fclose">×</button><div id="fpopup-content"></div></div></div>
+
+<script>
+document.getElementById("brandlogoimg").src=OWLOGO.light;
+/* ---- lightbox: click any image to zoom ---- */
+(function(){
+  const lb=document.getElementById('lightbox'),lbImg=lb.querySelector('img'),lbCap=lb.querySelector('.lbcap');
+  document.addEventListener('click',e=>{
+    if(lb.classList.contains('open')){lb.classList.remove('open');e.stopPropagation();return;}
+    const img=e.target.closest('.imgwrap img, .scheme img');
+    if(!img)return;
+    e.stopPropagation();
+    lbImg.src=img.src;lbImg.alt=img.alt||'';
+    const wrap=img.closest('.imgwrap')||img.parentElement;
+    const cap=wrap&&wrap.nextElementSibling&&wrap.nextElementSibling.classList.contains('panelcap')?wrap.nextElementSibling.textContent:'';
+    lbCap.textContent=cap;
+    lb.classList.add('open');
+  },true);
+  document.addEventListener('keydown',e=>{
+    if(!lb.classList.contains('open'))return;
+    e.stopPropagation();
+    if(['Escape','Enter',' ','ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();lb.classList.remove('open');}
+  },true);
+})();
+/* ---- formula popup ---- */
+window.showFormula=function(html){
+  const fp=document.getElementById('fpopup');
+  document.getElementById('fpopup-content').innerHTML=html;
+  fp.classList.add('open');
+};
+(function(){
+  const fp=document.getElementById('fpopup');
+  fp.addEventListener('click',e=>{if(e.target===fp||e.target.classList.contains('fclose')){fp.classList.remove('open');e.stopPropagation();}});
+  document.addEventListener('keydown',e=>{
+    if(!fp.classList.contains('open'))return;
+    e.stopPropagation();
+    if(e.key==='Escape'){e.preventDefault();fp.classList.remove('open');}
+  },true);
+})();
+</script>
+<!-- ===== NAVIGATION ENGINE ===== -->
+<script>
+(function(){
+  const slides=[...document.querySelectorAll('#deck > .slide, #deck > .hero')];
+  const N=slides.length;let cur=0;const inited=new Set();
+  const nav=document.getElementById('dots'),counter=document.getElementById('counter'),hint=document.getElementById('hint'),prog=document.getElementById('progress');
+  slides.forEach((s,i)=>{const a=document.createElement('a');a.title='Slide '+(i+1);a.onclick=e=>{e.stopPropagation();goTo(i);};nav.appendChild(a);});
+  const dots=[...nav.children];
+  function runInit(i){const id=slides[i].id;if(!inited.has(id)){inited.add(id);try{SLIDE_INIT[id]&&SLIDE_INIT[id]();}catch(e){console.error('init '+id,e);}}}
+  function goTo(i){i=Math.max(0,Math.min(N-1,i));slides[cur].classList.remove('active');slides[i].classList.add('active');cur=i;
+    runInit(i);
+    dots.forEach((d,k)=>d.classList.toggle('on',k===i));
+    const dark=slides[i].dataset.dark==='1';
+    nav.classList.toggle('dark',dark);counter.classList.toggle('dark',dark);hint.classList.toggle('dark',dark);
+    brandlogoimg.src=dark?OWLOGO.dark:OWLOGO.light;
+    counter.textContent=(i+1)+' / '+N;prog.style.width=((i+1)/N*100)+'%';
+    slides[i].scrollTop=0;
+  }
+  function next(){goTo(cur+1);}function prev(){goTo(cur-1);}
+  document.addEventListener('keydown',e=>{
+    if(['ArrowRight','PageDown',' ','Spacebar'].includes(e.key)){e.preventDefault();next();}
+    else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();prev();}
+    else if(e.key==='Home'){e.preventDefault();goTo(0);}
+    else if(e.key==='End'){e.preventDefault();goTo(N-1);}
+  });
+  // click to advance, but never when interacting with controls/charts
+  document.addEventListener('click',e=>{
+    if(e.target.closest('input,button,a,canvas,img,.viz,#dots,#lightbox,#fpopup'))return;
+    next();
+  });
+  goTo(0);
+})();
+</script>
+</body>
+</html>
