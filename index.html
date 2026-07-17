@@ -655,12 +655,13 @@ SLIDE_INIT['s1']=function(){
   <div class="cols">
     <div class="notes">
       <ul class="points">
-        <li><b>MRMS</b> (NOAA): ~180 US + Canada radars fused with gauges, NWP and lightning → <b>1 km / 2 min</b>, free and open. The de-facto training and verification target for DL nowcasting (MetNet, NowcastNet, DGMR-US).</li>
-        <li><b>OPERA</b> (EUMETNET): ~200 radars from 30+ countries in one pan-European composite, <b>2 km / 15 min</b>, harmonized via the ODIM standard — as much diplomacy as physics. EURADCLIM adds gauge adjustment on top.</li>
-        <li><b>Every serious met service has one:</b> <b>RADOLAN</b> (Germany, 1 km/5 min, gauge-adjusted), <b>UKPP</b> (UK Met Office), <b>CombiPrecip</b> (Switzerland), <b>JMA HRPN</b> (Japan — down to 250 m/5 min), <b>Rainfields</b> (Australia), <b>SWAN</b> (China). Same recipe everywhere: mosaic → QC → gauge adjustment.</li>
-        <li><b>Coverage follows wealth:</b> North America, Europe, East Asia — and hard nothing over oceans, most of Africa and South America. There is <b>no global radar composite</b>; the closest thing is satellite (IMERG / GSMaP). <span class="cite">Saltikoff et al., BAMS 2019</span></li>
+        <li><b>How a composite is built:</b> QC of each radar's volume scan (clutter, beam blockage, attenuation) → reproject to a common grid → merge overlaps (max or quality-weighted reflectivity) → Z–R → gauge adjustment.</li>
+        <li><b>MRMS</b> (NOAA): ~180 US + Canada radars fused with gauges, NWP and lightning → <b>1 km / 2 min</b>, free and open. The de-facto DL training target (MetNet, NowcastNet).</li>
+        <li><b>OPERA</b> (EUMETNET): ~200 radars from 30+ countries in one pan-European composite, <b>2 km / 15 min</b>. Heterogeneous national networks are unified via <b>ODIM HDF5</b> with per-pixel quality flags. EURADCLIM adds gauge adjustment.</li>
+        <li><b>Every serious met service has one:</b> <b>RADOLAN</b> (Germany, 1 km/5 min), <b>UKPP</b> (UK), <b>CombiPrecip</b> (Switzerland), <b>HRPN</b> (Japan, 250 m/5 min), <b>Rainfields</b> (Australia), <b>SWAN</b> (China) — the same pipeline everywhere.</li>
+        <li><b>Coverage follows wealth:</b> North America, Europe, East Asia — nothing over oceans, most of Africa and South America. There is <b>no global radar composite</b>; the closest is satellite (IMERG / GSMaP). <span class="cite">Saltikoff et al., BAMS 2019</span></li>
       </ul>
-      <p class="takeaway">Comment: middle panel — a year of radar rain over Europe; the sharp outer edge is not climate, it's where the radars stop.</p>
+      <p class="takeaway">Comment: the sharp edge in the middle panel is where the radars stop.</p>
     </div>
     <div class="viz">
       <div class="viz-title">Two flagship composites — and the global reality</div>
@@ -1435,6 +1436,23 @@ SLIDE_INIT['s1']=function(){
         <li><b>Neighborhood (FSS):</b> compare rain <em>fractions</em> in n×n windows — forgives small shifts, so sharp-but-offset forecasts get credit.</li>
         <li><b>Probabilistic (CRPS):</b> score the whole predicted distribution against what fell — the natural score for ensembles and generative models.</li>
       </ul>
+      <table style="width:100%;border-collapse:separate;border-spacing:4px;margin:8px 0 0;font-size:11.5px;line-height:1.25;text-align:center">
+        <tr>
+          <td></td>
+          <td style="color:#777;font-weight:600;padding:1px">observed: rain</td>
+          <td style="color:#777;font-weight:600;padding:1px">observed: dry</td>
+        </tr>
+        <tr>
+          <td style="color:#777;font-weight:600;text-align:right;padding:1px;white-space:nowrap">forecast: rain</td>
+          <td style="background:rgba(29,158,117,.92);color:#fff;border-radius:6px;padding:6px 4px"><b>hit</b><br><span id="s13mH">·</span></td>
+          <td style="background:rgba(232,118,58,.88);color:#fff;border-radius:6px;padding:6px 4px"><b>false alarm</b> (FP)<br><span id="s13mF">·</span></td>
+        </tr>
+        <tr>
+          <td style="color:#777;font-weight:600;text-align:right;padding:1px;white-space:nowrap">forecast: dry</td>
+          <td style="background:rgba(120,203,191,.75);color:#1f4a3f;border-radius:6px;padding:6px 4px"><b>miss</b> (FN)<br><span id="s13mM">·</span></td>
+          <td style="background:rgba(0,0,0,.06);color:#888;border-radius:6px;padding:6px 4px"><b>correct negative</b><br><span id="s13mN">·</span></td>
+        </tr>
+      </table>
       <p class="takeaway">Comment: walk the three tabs; each has its own toy. The ƒ button shows the formula behind the active one.</p>
     </div>
     <div class="viz">
@@ -1468,6 +1486,8 @@ SLIDE_INIT['s1']=function(){
     const fBin=new Float32Array(nx*ny);for(let k=0;k<nx*ny;k++)fBin[k]=fBlob[k]>0.4?1:0;
     let hits=0,misses=0,falseA=0;
     for(let k=0;k<nx*ny;k++){const t=truthBin[k],f=fBin[k];if(t&&f)hits++;else if(t&&!f)misses++;else if(!t&&f)falseA++;}
+    const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v+' px';};
+    set('s13mH',hits);set('s13mF',falseA);set('s13mM',misses);set('s13mN',nx*ny-hits-misses-falseA);
     return{fBin,hits,misses,falseA};
   }
   /* --- tab 1: contingency table, regions colored --- */
@@ -1483,6 +1503,13 @@ SLIDE_INIT['s1']=function(){
     ctx.fillStyle='#3d8e77';ctx.fillText('misses — rain you didn\'t warn about',10,20);
     ctx.fillStyle='#1D9E75';ctx.fillText('hits',10,38);
     ctx.fillStyle='#b8501f';ctx.fillText('false alarms — cried wolf',10,56);
+    ctx.font='600 12px Space Grotesk,sans-serif';ctx.textAlign='center';
+    ctx.lineWidth=3;ctx.strokeStyle='rgba(251,250,247,.9)';
+    ctx.strokeText('truth',0.38*w,0.5*h+4);
+    ctx.fillStyle='#1f4a3f';ctx.fillText('truth',0.38*w,0.5*h+4);
+    ctx.strokeText('forecast (drag me)',fx*w,fy*h+4);
+    ctx.fillStyle='#b8501f';ctx.fillText('forecast (drag me)',fx*w,fy*h+4);
+    ctx.textAlign='left';
     ctx.fillStyle='#999';ctx.font='11px Space Grotesk,sans-serif';
     ctx.fillText('drag the forecast blob',w-150,h-12);
     const pod=hits+misses>0?hits/(hits+misses):0;
